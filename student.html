@@ -4,7 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>پنل شاگرد</title>
-  <script> window.API_BASE = 'http://localhost:3001/api'; </script>
+  <script>
+    (function () {
+      const origin = (window.location && window.location.origin)
+        ? window.location.origin.replace(/\/$/, '')
+        : '';
+      window.API_BASE = origin + '/api';
+    })();
+  </script>
   <script src="js/api.js"></script>
 
   <link rel="stylesheet" href="styles.css" />
@@ -449,7 +456,15 @@
     </div>
   </div>
 
-  <script>window.API_BASE = window.API_BASE || 'http://localhost:3001/api';</script>
+  <script>
+    (function () {
+      if (window.API_BASE) return;
+      const origin = (window.location && window.location.origin)
+        ? window.location.origin.replace(/\/$/, '')
+        : '';
+      window.API_BASE = origin + '/api';
+    })();
+  </script>
   <script src="js/api.js"></script>
   <script src="js/db.js"></script>
   <script src="js/jalali.js"></script>

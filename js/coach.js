@@ -1,4 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
+  initCoach().catch(err => {
+    console.error('Coach panel init failed', err);
+    alert('خطا در بارگذاری داده‌ها. لطفاً صفحه را دوباره باز کنید.');
+  });
+});
+
+async function initCoach() {
+  try {
+    await (window.DB?.ready || Promise.resolve());
+  } catch (err) {
+    console.error('DB init failed', err);
+    alert('اتصال به سرور برقرار نشد.');
+    throw err;
+  }
+
   // Forms & UI refs
   const programForm = document.getElementById('programForm');
   const programTitle = document.getElementById('programTitle');
@@ -64,6 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sidebar nav
   const sideLinks = document.querySelectorAll('.side-link');
   const panels = document.querySelectorAll('.panel');
+
+  const runAsync = (fn) => (...args) => Promise.resolve(fn(...args)).catch(err => console.error(err));
 
   function refreshSelects() {
     const programs = DB.listPrograms();
@@ -132,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function renderPrograms() {
+  async function renderPrograms() {
     const programs = DB.listPrograms();
     programList.innerHTML = programs.length ? '' : '<div class="muted">برنامه‌ای ثبت نشده است</div>';
     programs.forEach(p => {
@@ -151,21 +168,35 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         ${chips}`;
       programList.appendChild(el);
-      el.querySelector('[data-edit-program]')?.addEventListener('click', () => {
+      el.querySelector('[data-edit-program]')?.addEventListener('click', async () => {
         const newTitle = prompt('عنوان جدید برنامه:', p.title);
         if (newTitle == null) return;
         const newDesc = prompt('توضیحات جدید (اختیاری):', p.description || '');
-        DB.updateProgram(p.id, { title: newTitle.trim() || p.title, description: (newDesc ?? '').trim() });
-        renderPrograms(); refreshSelects();
+        try {
+          await DB.updateProgram(p.id, { title: newTitle.trim() || p.title, description: (newDesc ?? '').trim() });
+          await renderPrograms();
+          refreshSelects();
+        } catch (err) {
+          console.error(err);
+          alert('به‌روزرسانی برنامه ناموفق بود.');
+        }
       });
-      el.querySelector('[data-del-program]')?.addEventListener('click', () => {
+      el.querySelector('[data-del-program]')?.addEventListener('click', async () => {
         if (!confirm('حذف برنامه؟ انتساب‌های مرتبط نیز حذف می‌شوند.')) return;
-        DB.deleteProgram(p.id); renderPrograms(); renderAssignments(); refreshSelects();
+        try {
+          await DB.deleteProgram(p.id);
+          await renderPrograms();
+          await renderAssignments();
+          refreshSelects();
+        } catch (err) {
+          console.error(err);
+          alert('حذف برنامه انجام نشد.');
+        }
       });
     });
   }
 
-  function renderGroups() {
+  async function renderGroups() {
     const groups = DB.listGroups();
     const students = DB.listStudents();
     groupList.innerHTML = groups.length ? '' : '<div class="muted">گروهی ثبت نشده است</div>';
@@ -182,20 +213,34 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>`;
       groupList.appendChild(el);
-      el.querySelector('[data-rename-group]')?.addEventListener('click', () => {
+      el.querySelector('[data-rename-group]')?.addEventListener('click', async () => {
         const name = prompt('نام جدید گروه:', g.name);
         if (name == null) return;
-        DB.updateGroup(g.id, { name: name.trim() || g.name });
-        renderGroups(); refreshSelects();
+        try {
+          await DB.updateGroup(g.id, { name: name.trim() || g.name });
+          await renderGroups();
+          refreshSelects();
+        } catch (err) {
+          console.error(err);
+          alert('ویرایش گروه انجام نشد.');
+        }
       });
-      el.querySelector('[data-del-group]')?.addEventListener('click', () => {
+      el.querySelector('[data-del-group]')?.addEventListener('click', async () => {
         if (!confirm('حذف گروه؟ انتساب‌های مربوط به گروه حذف می‌شوند.')) return;
-        DB.deleteGroup(g.id); renderGroups(); renderAssignments(); refreshSelects();
+        try {
+          await DB.deleteGroup(g.id);
+          await renderGroups();
+          await renderAssignments();
+          refreshSelects();
+        } catch (err) {
+          console.error(err);
+          alert('حذف گروه انجام نشد.');
+        }
       });
     });
   }
 
-  function renderStudents() {
+  async function renderStudents() {
     const students = DB.listStudents();
     const groups = DB.listGroups();
     studentList.innerHTML = students.length ? '' : '<div class="muted">شاگردی ثبت نشده است</div>';
@@ -213,27 +258,42 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>`;
       studentList.appendChild(el);
-      el.querySelector('[data-edit-student]')?.addEventListener('click', () => {
+      el.querySelector('[data-edit-student]')?.addEventListener('click', async () => {
         const newName = prompt('نام جدید:', s.name);
         if (newName == null) return;
         const newEmail = prompt('ایمیل جدید:', s.email);
         try {
-          DB.updateStudent(s.id, { name: newName.trim() || s.name, email: (newEmail ?? '').trim() || s.email });
-          renderStudents(); refreshSelects();
+          await DB.updateStudent(s.id, { name: newName.trim() || s.name, email: (newEmail ?? '').trim() || s.email });
+          await renderStudents();
+          refreshSelects();
         } catch (err) { alert(err.message || 'خطا'); }
       });
-      el.querySelector('[data-del-student]')?.addEventListener('click', () => {
+      el.querySelector('[data-del-student]')?.addEventListener('click', async () => {
         if (!confirm('حذف شاگرد؟ پرداخت‌ها و اهداف شاگرد نیز حذف می‌شوند.')) return;
-        DB.deleteStudent(s.id); renderStudents(); renderAssignments(); refreshSelects(); renderCoachPayments();
+        try {
+          await DB.deleteStudent(s.id);
+          await renderStudents();
+          await renderAssignments();
+          refreshSelects();
+          await renderCoachPayments();
+        } catch (err) {
+          console.error(err);
+          alert('حذف شاگرد انجام نشد.');
+        }
       });
-      el.querySelector('[data-verify-student]')?.addEventListener('click', () => {
-        DB.markStudentVerified(s.id);
-        renderStudents();
+      el.querySelector('[data-verify-student]')?.addEventListener('click', async () => {
+        try {
+          await DB.markStudentVerified(s.id);
+          await renderStudents();
+        } catch (err) {
+          console.error(err);
+          alert('خطا در تایید شاگرد');
+        }
       });
     });
   }
 
-  function renderAssignments() {
+  async function renderAssignments() {
     const assignments = DB.listAssignments();
     const groups = DB.listGroups();
     const students = DB.listStudents();
@@ -262,21 +322,32 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>`;
       assignmentList.appendChild(el);
-      el.querySelector('[data-edit-asg]')?.addEventListener('click', () => {
+      el.querySelector('[data-edit-asg]')?.addEventListener('click', async () => {
         const sd = prompt('تاریخ شروع (YYYY-MM-DD):', a.startDate || '');
         if (sd == null) return;
         const dd = prompt('مدت (روز):', String(a.durationDays || 7));
-        DB.updateAssignmentDates(a.id, { startDate: sd.trim(), durationDays: parseInt(dd||'7',10) });
-        renderAssignments();
+        try {
+          await DB.updateAssignmentDates(a.id, { startDate: sd.trim(), durationDays: parseInt(dd||'7',10) });
+          await renderAssignments();
+        } catch (err) {
+          console.error(err);
+          alert('به‌روزرسانی انتساب انجام نشد.');
+        }
       });
-      el.querySelector('[data-del-asg]')?.addEventListener('click', () => {
+      el.querySelector('[data-del-asg]')?.addEventListener('click', async () => {
         if (!confirm('حذف انتساب؟')) return;
-        DB.deleteAssignment(a.id); renderAssignments();
+        try {
+          await DB.deleteAssignment(a.id);
+          await renderAssignments();
+        } catch (err) {
+          console.error(err);
+          alert('حذف انتساب انجام نشد.');
+        }
       });
     });
   }
 
-  function renderCoachPayments() {
+  async function renderCoachPayments() {
     if (!coachPaymentList) return;
     const payments = DB.listPayments();
     const students = DB.listStudents();
@@ -302,10 +373,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const el = document.createElement('div');
       el.className = 'item payment-item';
       const monthLabel = p.monthJalali ? formatJMonthLabel(p.monthJalali) : (p.month ? Jalali.fromGregorianYYYYMMToJalaliLabel(p.month) : 'بدون ماه');
+      const imgUrl = p.imageUrl || p.imageDataUrl || '';
       el.innerHTML = `
         <div class="payment">
-          <a href="${p.imageDataUrl}" target="_blank" rel="noopener">
-            <img src="${p.imageDataUrl}" alt="رسید" class="thumb" />
+          <a href="${imgUrl}" target="_blank" rel="noopener">
+            <img src="${imgUrl}" alt="رسید" class="thumb" />
           </a>
           <div class="payment-meta">
             <div><strong>${escapeHtml(s ? s.name : 'نامشخص')}</strong> <span class="muted">${escapeHtml(s ? `(${s.email})` : (p.studentEmail ? `(${p.studentEmail})` : ''))}</span></div>
@@ -325,21 +397,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const n = prompt('توضیح رسید:', p.note || '');
         // normalize m to YYYY-MM
         const mNorm = (m || '').replace('/', '-').trim();
-        DB.updatePayment(p.id, { monthJalali: mNorm || null, month: null, note: (n || '').trim() });
-        renderCoachPayments();
+        try {
+          await DB.updatePayment(p.id, { monthJalali: mNorm || null, month: null, note: (n || '').trim() });
+          await renderCoachPayments();
+        } catch (err) {
+          console.error(err);
+          alert('بروزرسانی پرداخت انجام نشد.');
+        }
       });
-      el.querySelector('[data-del-payment]')?.addEventListener('click', () => {
+      el.querySelector('[data-del-payment]')?.addEventListener('click', async () => {
         if (!confirm('حذف این پرداختی؟')) return;
-        DB.deletePayment(p.id); renderCoachPayments();
+        try {
+          await DB.deletePayment(p.id);
+          await renderCoachPayments();
+        } catch (err) {
+          console.error(err);
+          alert('حذف پرداخت انجام نشد.');
+        }
       });
     });
   }
 
-  function renderOverview() {
+  async function renderOverview() {
     if (!ovContent) return;
     const sid = ovStudent?.value || '';
     if (!sid) { ovContent.innerHTML = '<div class="muted">یک شاگرد را از بالا انتخاب کنید یا جستجو کنید.</div>'; return; }
-    const s = DB.listStudents().find(x => x.id === sid);
+    const students = DB.listStudents();
+    const s = students.find(x => x.id === sid);
     if (!s) { ovContent.innerHTML = '<div class="muted">شاگرد یافت نشد</div>'; return; }
 
     // Profile
@@ -403,9 +487,10 @@ document.addEventListener('DOMContentLoaded', () => {
       payBox.innerHTML = '<div class="muted">پرداختی ثبت نشده</div>';
     } else {
       const items = pays.map(p => {
+        const imgUrl = p.imageUrl || p.imageDataUrl || '';
         const monthLabel = p.monthJalali ? formatJMonthLabel(p.monthJalali) : (p.month ? Jalali.fromGregorianYYYYMMToJalaliLabel(p.month) : 'بدون ماه');
         return `<div class="payment" style="margin:6px 0;">
-          <a href="${p.imageDataUrl}" target="_blank" rel="noopener"><img src="${p.imageDataUrl}" class="thumb" alt="رسید"/></a>
+          <a href="${imgUrl}" target="_blank" rel="noopener"><img src="${imgUrl}" class="thumb" alt="رسید"/></a>
           <div class="payment-meta"><div><strong>${escapeHtml(monthLabel)}</strong></div><div class="muted">${escapeHtml(p.note || '')}</div></div>
         </div>`;
       }).join('');
@@ -413,7 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Logs (recent up to 10)
-    const logs = DB.listLogsForStudent(s.id);
+    const logs = await DB.listLogsForStudent(s.id);
     const logBox = document.createElement('div'); logBox.className = 'item';
     if (!logs.length) {
       logBox.innerHTML = '<div class="muted">گزارش روزانه ثبت نشده</div>';
@@ -441,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Goals (with metrics)
-    const goals = DB.listGoalsForStudent(s.id);
+    const goals = await DB.listGoalsForStudent(s.id);
     const goalBox = document.createElement('div'); goalBox.className = 'item';
     if (!goals.length) {
       goalBox.innerHTML = '<div class="muted">هدف ثبت نشده</div>';
@@ -463,18 +548,17 @@ document.addEventListener('DOMContentLoaded', () => {
     ovContent.appendChild(chartsBox);
     ovContent.appendChild(asgBox);
     ovContent.appendChild(payBox);
-    ovContent.appendChild(logBox);
-    ovContent.appendChild(goalBox);
+   ovContent.appendChild(logBox);
+   ovContent.appendChild(goalBox);
 
     // After DOM is in place, draw charts
-    const ovLogs = DB.listLogsForStudent(s.id) || [];
-    drawOverviewCharts(ovLogs);
+    drawOverviewCharts(logs || []);
 
     // day comments disabled
   }
 
-  function renderCoachDayComments(studentId, programId, dayKey, container){
-    const cmts = DB.listDayComments(programId, studentId, dayKey);
+  async function renderCoachDayComments(studentId, programId, dayKey, container){
+    const cmts = await DB.listDayComments(programId, studentId, dayKey);
     container.innerHTML = '';
     const list = document.createElement('div'); list.className = 'list';
     if (!cmts.length) {
@@ -491,12 +575,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const form = document.createElement('form'); form.className = 'mini';
     form.innerHTML = `<input type="text" placeholder="پیام مربی برای این روز..." /><button type="submit">ارسال</button>`;
-    form.addEventListener('submit', (e)=>{
+    form.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const inp = form.querySelector('input'); const text = (inp.value||'').trim(); if(!text) return;
-      DB.addDayComment({ programId, studentId, dayKey, author: 'coach', authorName: 'coach', text });
-      inp.value='';
-      renderCoachDayComments(studentId, programId, dayKey, container);
+      try {
+        await DB.addDayComment({ programId, studentId, dayKey, author: 'coach', authorName: 'coach', text });
+        inp.value='';
+        await renderCoachDayComments(studentId, programId, dayKey, container);
+      } catch (err) {
+        console.error(err);
+        alert('ارسال پیام انجام نشد.');
+      }
     });
     container.appendChild(form);
   }
@@ -539,16 +628,17 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath(); values.forEach((v,i)=>{ const x=pad + innerW * (i/(n-1||1)); const nv=(v-min)/range; const y= pad + innerH * (invertY? nv : (1-nv)); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }); ctx.stroke();
   }
 
-  function renderCoachLogs() {
+  async function renderCoachLogs() {
     if (!coachLogList) return;
     const students = DB.listStudents();
     const selectedStudent = logFilterStudent?.value || '';
     // gather logs with student context
     let items = [];
-    students.forEach(s => {
+    await Promise.all(students.map(async s => {
       if (selectedStudent && s.id !== selectedStudent) return;
-      DB.listLogsForStudent(s.id).forEach(l => items.push({ l, s }));
-    });
+      const logs = await DB.listLogsForStudent(s.id);
+      logs.forEach(l => items.push({ l, s }));
+    }));
     // search
     const q = (logSearch?.value || '').trim().toLowerCase();
     if (q) {
@@ -602,13 +692,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!wrap) return;
         const isHidden = wrap.style.display === 'none';
         wrap.style.display = isHidden ? '' : 'none';
-        if (isHidden) renderCoachCommentsForLog(id, wrap);
+        if (isHidden) renderCoachCommentsForLog(id, wrap).catch(err => console.error(err));
       });
     });
   }
 
-  function renderCoachCommentsForLog(logId, container){
-    const cmts = DB.listCommentsForLog(logId);
+  async function renderCoachCommentsForLog(logId, container){
+    const cmts = await DB.listCommentsForLog(logId);
     container.innerHTML = '';
     const list = document.createElement('div'); list.className = 'list';
     if (!cmts.length) {
@@ -625,13 +715,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const form = document.createElement('form'); form.className = 'mini'; form.setAttribute('data-cmt-form', logId);
     form.innerHTML = `<input type="text" placeholder="نوشتن نظر مربی..." /><button type="submit">ارسال</button>`;
-    form.addEventListener('submit', (e)=>{
+    form.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const inp = form.querySelector('input');
       const text = (inp.value || '').trim(); if(!text) return;
-      DB.addComment({ logId, author: 'coach', authorName: 'coach', text });
-      inp.value='';
-      renderCoachCommentsForLog(logId, container);
+      try {
+        await DB.addComment({ logId, author: 'coach', authorName: 'coach', text });
+        inp.value='';
+        await renderCoachCommentsForLog(logId, container);
+      } catch (err) {
+        console.error(err);
+        alert('ارسال نظر انجام نشد.');
+      }
     });
     container.appendChild(form);
   }
@@ -646,12 +741,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch { return ''; }
   }
 
-  function renderCoachGoals() {
+  async function renderCoachGoals() {
     if (!coachGoalList) return;
     const sid = goalFilterStudent?.value || '';
     coachGoalList.innerHTML = sid ? '' : '<div class="muted">یک شاگرد را انتخاب کنید</div>';
     if (!sid) return;
-    const goals = DB.listGoalsForStudent(sid);
+    const goals = await DB.listGoalsForStudent(sid);
     coachGoalList.innerHTML = goals.length ? '' : '<div class="muted">هدف ثبت نشده</div>';
     goals.forEach(g => {
       const el = document.createElement('div'); el.className = 'item';
@@ -670,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function hrChip(l){ return (l.hrAvg!=null ? chip('HR', `${l.hrAvg} bpm`) : ''); }
 
   // Event handlers
-  programForm.addEventListener('submit', (e) => {
+  programForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = programTitle.value.trim();
     const description = programDesc.value.trim();
@@ -684,114 +779,143 @@ document.addEventListener('DOMContentLoaded', () => {
       { key: 'thu', content: (w_thu?.value || '').trim() },
       { key: 'fri', content: (w_fri?.value || '').trim() },
     ];
-    DB.addProgram({ title, description, week });
-    programTitle.value = '';
-    programDesc.value = '';
-    if (w_sat) w_sat.value = '';
-    if (w_sun) w_sun.value = '';
-    if (w_mon) w_mon.value = '';
-    if (w_tue) w_tue.value = '';
-    if (w_wed) w_wed.value = '';
-    if (w_thu) w_thu.value = '';
-    if (w_fri) w_fri.value = '';
-    renderPrograms();
-    refreshSelects();
+    try {
+      await DB.addProgram({ title, description, week });
+      programTitle.value = '';
+      programDesc.value = '';
+      if (w_sat) w_sat.value = '';
+      if (w_sun) w_sun.value = '';
+      if (w_mon) w_mon.value = '';
+      if (w_tue) w_tue.value = '';
+      if (w_wed) w_wed.value = '';
+      if (w_thu) w_thu.value = '';
+      if (w_fri) w_fri.value = '';
+      await renderPrograms();
+      refreshSelects();
+    } catch (err) {
+      console.error(err);
+      alert('ثبت برنامه انجام نشد.');
+    }
   });
 
-  groupForm.addEventListener('submit', (e) => {
+  groupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = groupName.value.trim();
     if (!name) return;
-    DB.addGroup({ name });
-    groupName.value = '';
-    renderGroups();
-    refreshSelects();
+    try {
+      await DB.addGroup({ name });
+      groupName.value = '';
+      await renderGroups();
+      refreshSelects();
+    } catch (err) {
+      console.error(err);
+      alert('ثبت گروه انجام نشد.');
+    }
   });
 
-  studentForm.addEventListener('submit', (e) => {
+  studentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = studentName.value.trim();
     const email = studentEmail.value.trim();
     const groupId = studentGroup.value;
     if (!name || !email || !groupId) return;
     try {
-      DB.addStudent({ name, email, groupId });
+      await DB.addStudent({ name, email, groupId });
       studentName.value = '';
       studentEmail.value = '';
-      renderStudents();
-      renderGroups();
+      await renderStudents();
+      await renderGroups();
       refreshSelects();
     } catch (err) {
       alert(err.message || 'خطا در افزودن شاگرد');
     }
   });
 
-  assignGroupForm.addEventListener('submit', (e) => {
+  assignGroupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const programId = assignProgramForGroup.value;
     const groupId = assignTargetGroup.value;
     const startDate = assignGroupStartISO.value || new Date().toISOString().slice(0,10);
     const durationDays = Math.max(1, parseInt(assignGroupDuration.value || '7', 10));
     if (!programId || !groupId) return;
-    DB.assignProgramToGroup(programId, groupId, { startDate, durationDays });
-    renderAssignments();
+    try {
+      await DB.assignProgramToGroup(programId, groupId, { startDate, durationDays });
+      await renderAssignments();
+    } catch (err) {
+      console.error(err);
+      alert('انتساب برنامه به گروه انجام نشد.');
+    }
   });
 
-  assignStudentForm.addEventListener('submit', (e) => {
+  assignStudentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const programId = assignProgramForStudent.value;
     const studentId = assignTargetStudent.value;
     const startDate = assignStudentStartISO.value || new Date().toISOString().slice(0,10);
     const durationDays = Math.max(1, parseInt(assignStudentDuration.value || '7', 10));
     if (!programId || !studentId) return;
-    DB.assignProgramToStudent(programId, studentId, { startDate, durationDays });
-    renderAssignments();
+    try {
+      await DB.assignProgramToStudent(programId, studentId, { startDate, durationDays });
+      await renderAssignments();
+    } catch (err) {
+      console.error(err);
+      alert('انتساب برنامه به شاگرد انجام نشد.');
+    }
   });
 
-  paymentFilterStudent?.addEventListener('change', () => {
-    renderCoachPayments();
-  });
-  clearPaymentFilter?.addEventListener('click', () => {
+  paymentFilterStudent?.addEventListener('change', runAsync(renderCoachPayments));
+  clearPaymentFilter?.addEventListener('click', async () => {
     if (paymentFilterStudent) paymentFilterStudent.value = '';
     if (paymentSearch) paymentSearch.value = '';
-    renderCoachPayments();
+    await renderCoachPayments();
   });
 
-  paymentSearch?.addEventListener('input', () => {
-    renderCoachPayments();
-  });
+  paymentSearch?.addEventListener('input', runAsync(renderCoachPayments));
 
   // Overview filter logic
   ovSearch?.addEventListener('input', () => {
     const q = (ovSearch.value || '').trim().toLowerCase();
     const students = DB.listStudents();
     const match = students.find(s => (`${s.name} ${s.email}`).toLowerCase().includes(q));
-    if (match && ovStudent) ovStudent.value = match.id; else if (ovStudent && !q) ovStudent.value = '';
-    renderOverview();
+    if (match && ovStudent) ovStudent.value = match.id;
+    else if (ovStudent && !q) ovStudent.value = '';
+    runAsync(renderOverview)();
   });
-  ovStudent?.addEventListener('change', () => renderOverview());
-  ovClear?.addEventListener('click', () => { if(ovSearch) ovSearch.value=''; if(ovStudent) ovStudent.value=''; renderOverview(); });
+  ovStudent?.addEventListener('change', runAsync(renderOverview));
+  ovClear?.addEventListener('click', () => {
+    if(ovSearch) ovSearch.value='';
+    if(ovStudent) ovStudent.value='';
+    runAsync(renderOverview)();
+  });
 
   // Logs/Goals filters
-  logFilterStudent?.addEventListener('change', () => renderCoachLogs());
-  logSearch?.addEventListener('input', () => renderCoachLogs());
-  clearLogFilter?.addEventListener('click', () => { if (logFilterStudent) logFilterStudent.value=''; if (logSearch) logSearch.value=''; renderCoachLogs(); });
-  goalFilterStudent?.addEventListener('change', () => renderCoachGoals());
-
-  seedDemoBtn.addEventListener('click', () => {
-    const seeded = DB.seedDemo();
-    if (seeded) {
-      alert('داده‌ی نمونه افزوده شد. ایمیل ورود شاگرد نمونه: ali@example.com');
-    } else {
-      alert('داده‌ها از قبل وجود دارند یا قبلاً نمونه افزوده شده است.');
-    }
-    renderPrograms();
-    renderGroups();
-    renderStudents();
-    renderAssignments();
-    refreshSelects();
-    renderCoachPayments();
+  logFilterStudent?.addEventListener('change', runAsync(renderCoachLogs));
+  logSearch?.addEventListener('input', runAsync(renderCoachLogs));
+  clearLogFilter?.addEventListener('click', () => {
+    if (logFilterStudent) logFilterStudent.value='';
+    if (logSearch) logSearch.value='';
+    runAsync(renderCoachLogs)();
   });
+  goalFilterStudent?.addEventListener('change', runAsync(renderCoachGoals));
+
+  seedDemoBtn.addEventListener('click', runAsync(async () => {
+    try {
+      await DB.seedDemo();
+      alert('داده‌ی نمونه افزوده شد. ایمیل ورود شاگرد نمونه: ali@example.com');
+    } catch (err) {
+      console.error(err);
+      alert('افزودن داده نمونه ناموفق بود (ممکن است از قبل وجود داشته باشد).');
+    }
+    await renderPrograms();
+    await renderGroups();
+    await renderStudents();
+    await renderAssignments();
+    refreshSelects();
+    await renderCoachPayments();
+    await renderOverview();
+    await renderCoachLogs();
+    await renderCoachGoals();
+  }));
 
   // Helpers
   function escapeHtml(str) {
@@ -817,18 +941,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // initial render
-  renderPrograms();
-  renderGroups();
-  renderStudents();
-  renderAssignments();
+  await renderPrograms();
+  await renderGroups();
+  await renderStudents();
+  await renderAssignments();
   refreshSelects();
-  renderCoachPayments();
-  renderOverview();
-  renderCoachLogs();
-  renderCoachGoals();
+  await renderCoachPayments();
+  await renderOverview();
+  await renderCoachLogs();
+  await renderCoachGoals();
   initJDatePicker('g');
   initJDatePicker('s');
-});
+}
 
 function formatJMonthLabel(jStr){
   const parts = String(jStr||'').split('-');

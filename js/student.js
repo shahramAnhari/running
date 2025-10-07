@@ -1,4 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
+  (async () => {
+    try {
+      await (window.DB?.ready || Promise.resolve());
+    } catch (err) {
+      console.error('DB init failed', err);
+    }
+
   const loginForm = document.getElementById('loginForm');
   const loginEmail = document.getElementById('loginEmail');
   const rememberMe = document.getElementById('rememberMe');
@@ -109,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentStudent = null;
   let currentJYear = null;
 
-  loginForm.addEventListener('submit', (e) => {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = (loginEmail.value || '').trim();
     if (!email) return;
@@ -132,21 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // hide login card after success
       try { loginForm.closest('section').style.display = 'none'; } catch {}
       verifyArea.style.display = 'none';
-      renderPrograms();
-      renderPayments();
-      renderGoals();
-      initJalaliPicker();
-      renderArchive();
-      initLogDefaults();
-      populateLogSessionOptions();
-      updateSessionDayUI();
-      initEmojiQuick();
-      renderLogs();
-      renderStudentCharts();
-      initJDatePicker('p');
-      initJDatePicker('c');
-      renderProfile();
-      updateHeaderFromProfile();
+      await loadStudentWorkspace();
     } else {
       loginMsg.textContent = `${s.name} عزیز، لطفاً ایمیل خود را تایید کنید.`;
       verifyArea.style.display = '';
@@ -156,38 +149,62 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  sendCodeBtn?.addEventListener('click', () => {
+  async function loadStudentWorkspace() {
     if (!currentStudent) return;
-    const res = DB.startEmailVerification(currentStudent.id);
-    verifyMsg.textContent = `کد تایید ارسال شد. (نمونه: ${res.code})`;
+    try {
+      await Promise.all([
+        DB.listLogsForStudent(currentStudent.id),
+        DB.listGoalsForStudent(currentStudent.id),
+        DB.listMedicalDocsForStudent(currentStudent.id),
+      ]);
+    } catch (err) {
+      console.error('Student data prefetch failed', err);
+    }
+    initJalaliPicker();
+    renderPrograms();
+    await renderPayments();
+    await renderGoals();
+    await renderArchive();
+    initLogDefaults();
+    populateLogSessionOptions();
+    updateSessionDayUI();
+    initEmojiQuick();
+    await renderLogs();
+    await renderStudentCharts();
+    initJDatePicker('p');
+    initJDatePicker('c');
+    await renderProfile();
+    updateHeaderFromProfile();
+  }
+
+  sendCodeBtn?.addEventListener('click', async () => {
+    if (!currentStudent) return;
+    try {
+      const res = await DB.startEmailVerification(currentStudent.id);
+      verifyMsg.textContent = `کد تایید ارسال شد. (نمونه: ${res.code || '******'})`;
+    } catch (err) {
+      console.error(err);
+      verifyMsg.textContent = 'خطا در ارسال کد. لطفاً دوباره تلاش کنید.';
+    }
   });
 
-  confirmCodeBtn?.addEventListener('click', () => {
+  confirmCodeBtn?.addEventListener('click', async () => {
     if (!currentStudent) return;
     const code = (verifyCodeInput.value || '').trim();
     if (!code) { verifyMsg.textContent = 'کد را وارد کنید'; return; }
-    const ok = DB.verifyStudentEmail(currentStudent.id, code);
+    let ok = false;
+    try {
+      ok = await DB.verifyStudentEmail(currentStudent.id, code);
+    } catch (err) {
+      console.error(err);
+    }
     if (ok) {
       verifyMsg.textContent = 'ایمیل تایید شد!';
       loginMsg.textContent = `خوش آمدید ${currentStudent.name}`;
       verifyArea.style.display = 'none';
       appArea.style.display = '';
       try { loginForm.closest('section').style.display = 'none'; } catch {}
-      renderPrograms();
-      renderPayments();
-      renderGoals();
-      initJalaliPicker();
-      renderArchive();
-      initLogDefaults();
-      populateLogSessionOptions();
-      updateSessionDayUI();
-      initEmojiQuick();
-      renderLogs();
-      renderStudentCharts();
-      initJDatePicker('p');
-      initJDatePicker('c');
-      renderProfile();
-      updateHeaderFromProfile();
+      await loadStudentWorkspace();
     } else {
       verifyMsg.textContent = 'کد نامعتبر است یا منقضی شده است.';
     }
@@ -375,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setDayPreview((chosen||{}).content || '');
   });
 
-  logForm?.addEventListener('submit', (e) => {
+  logForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!currentStudent) return;
     const date = new Date().toISOString().slice(0,10);
@@ -407,11 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       if (editingId) {
-        DB.updateLog(editingId, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
+        await DB.updateLog(editingId, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
       } else {
-        DB.addLog(currentStudent.id, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
+        await DB.addLog(currentStudent.id, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
       }
     } catch (err) {
+      console.error(err);
       alert(err.message || 'خطا در ثبت');
       return;
     }
@@ -421,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     logSubmit.textContent = 'ثبت';
     logCancel.style.display = 'none';
     logNote.value = '';
-    renderLogs();
+    await renderLogs();
   });
 
   logCancel?.addEventListener('click', () => {
@@ -432,9 +450,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initLogDefaults();
   });
 
-  function renderLogs(){
+  async function renderLogs(){
     if (!currentStudent || !logList) return;
-    const logs = DB.listLogsForStudent(currentStudent.id);
+    const logs = await DB.listLogsForStudent(currentStudent.id);
     logList.innerHTML = logs.length ? '' : '<div class="muted">ورودی ثبت نشده است</div>';
     const programs = DB.getProgramsForStudent(currentStudent.id);
     const pMap = new Map(programs.map(p=>[p.id, p]));
@@ -473,9 +491,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // bind edit/delete
     logList.querySelectorAll('[data-edit-log]')?.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-edit-log');
-        const logs = DB.listLogsForStudent(currentStudent.id);
+        const logs = await DB.listLogsForStudent(currentStudent.id);
         const l = logs.find(x => x.id === id);
         if (!l) return;
         logEditingId.value = l.id;
@@ -519,11 +537,16 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
     logList.querySelectorAll('[data-del-log]')?.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-del-log');
         if (!confirm('حذف این ورودی؟')) return;
-        DB.deleteLog(id);
-        renderLogs();
+        try {
+          await DB.deleteLog(id);
+          await renderLogs();
+        } catch (err) {
+          console.error(err);
+          alert('حذف گزارش انجام نشد.');
+        }
       });
     });
 
@@ -535,13 +558,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!wrap) return;
         const isHidden = wrap.style.display === 'none';
         wrap.style.display = isHidden ? '' : 'none';
-        if (isHidden) renderCommentsForLog(id, wrap);
+        if (isHidden) renderCommentsForLog(id, wrap).catch(err => console.error(err));
       });
     });
   }
 
-  function renderCommentsForLog(logId, container){
-    const cmts = DB.listCommentsForLog(logId);
+  async function renderCommentsForLog(logId, container){
+    const cmts = await DB.listCommentsForLog(logId);
     container.innerHTML = '';
     const list = document.createElement('div');
     list.className = 'list';
@@ -560,14 +583,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // add form
     const form = document.createElement('form'); form.className = 'mini'; form.setAttribute('data-cmt-form', logId);
     form.innerHTML = `<input type="text" placeholder="نوشتن پاسخ..." /><button type="submit">ارسال</button>`;
-    form.addEventListener('submit', (e)=>{
+    form.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const inp = form.querySelector('input');
       const text = (inp.value || '').trim();
       if (!text) return;
-      DB.addComment({ logId, author: 'student', authorName: currentStudent?.name || '', authorStudentId: currentStudent?.id || null, text });
-      inp.value='';
-      renderCommentsForLog(logId, container);
+      try {
+        await DB.addComment({ logId, author: 'student', authorName: currentStudent?.name || '', authorStudentId: currentStudent?.id || null, text });
+        inp.value='';
+        await renderCommentsForLog(logId, container);
+      } catch (err) {
+        console.error(err);
+        alert('ارسال کامنت انجام نشد.');
+      }
     });
     container.appendChild(form);
   }
@@ -583,9 +611,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Charts (student)
-  function renderStudentCharts(){
+  async function renderStudentCharts(){
     if(!currentStudent) return;
-    const logs = DB.listLogsForStudent(currentStudent.id) || [];
+    const logs = await DB.listLogsForStudent(currentStudent.id) || [];
     // Distance last 30 days (daily sum)
     if (stDistChart) {
       const days = 30;
@@ -707,22 +735,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentStudent) return;
     const file = paymentImage.files && paymentImage.files[0];
     if (!file) return;
-    const dataUrl = await fileToDataURL(file);
     const monthJalaliStr = paymentMonthJalaliHidden.value || null;
     const note = paymentNote.value || '';
-    DB.addPayment(currentStudent.id, { imageDataUrl: dataUrl, note, month: null, monthJalali: monthJalaliStr });
-    paymentImage.value = '';
-    paymentNote.value = '';
-    renderPayments();
+    try {
+      await DB.addPayment(currentStudent.id, { file, note, month: null, monthJalali: monthJalaliStr });
+      paymentImage.value = '';
+      paymentNote.value = '';
+      await renderPayments();
+    } catch (err) {
+      console.error(err);
+      alert('ثبت رسید پرداخت با خطا مواجه شد.');
+    }
   });
 
-  function renderPayments() {
+  async function renderPayments() {
     if (!currentStudent || !paymentList) return;
-    const payments = DB.getPaymentsForStudent(currentStudent.id).slice();
+    const payments = await Promise.resolve(DB.getPaymentsForStudent(currentStudent.id));
+    const list = (payments || []).slice();
     paymentList.innerHTML = payments.length ? '' : '<div class="muted">پرداختی ثبت نشده است</div>';
     // group by Jalali month label
     const groups = new Map();
-    payments.forEach(p => {
+    list.forEach(p => {
       const label = p.monthJalali ? formatJMonthLabel(p.monthJalali) : (p.month ? Jalali.fromGregorianYYYYMMToJalaliLabel(p.month) : 'بدون ماه');
       if (!groups.has(label)) groups.set(label, []);
       groups.get(label).push(p);
@@ -733,10 +766,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const inner = document.createElement('div'); inner.className = 'list';
       items.forEach(p => {
         const row = document.createElement('div'); row.className = 'item payment-item';
+        const imgUrl = p.imageUrl || p.imageDataUrl || '';
         row.innerHTML = `
           <div class="payment">
-            <a href="${p.imageDataUrl}" target="_blank" rel="noopener">
-              <img src="${p.imageDataUrl}" alt="رسید" class="thumb" />
+            <a href="${imgUrl}" target="_blank" rel="noopener">
+              <img src="${imgUrl}" alt="رسید" class="thumb" />
             </a>
             <div class="payment-meta">
               <div class="muted">${escapeHtml(p.note || '')}</div>
@@ -755,29 +789,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Profile render/save
-  function renderProfile(){
+  async function renderProfile(){
     if(!currentStudent || !profileForm) return;
     profName.value = currentStudent.name || '';
-    const apply = (p)=>{
-      p = p || {};
-      profGender.value = p.gender || '';
-      profBirthISO.value = p.birthISO || '';
-      profBirthJalali.value = '';
-      if (p.birthISO){ const d = parseISODate(p.birthISO); const j = Jalali.toJalali(d.getFullYear(), d.getMonth()+1, d.getDate()); profBirthJalali.value = `${j.jy}/${String(j.jm).padStart(2,'0')}/${String(j.jd).padStart(2,'0')}`; }
-      profWeight.value = (p.weightKg != null) ? String(p.weightKg) : '';
-      profHeight.value = (p.heightCm != null) ? String(p.heightCm) : '';
-      cycleISO.value = p.cycleApproxISO || '';
-      cycleJalali.value = '';
-      if (p.cycleApproxISO){ const d2 = parseISODate(p.cycleApproxISO); const j2 = Jalali.toJalali(d2.getFullYear(), d2.getMonth()+1, d2.getDate()); cycleJalali.value = `${j2.jy}/${String(j2.jm).padStart(2,'0')}/${String(j2.jd).padStart(2,'0')}`; }
-      if (femaleOnly) femaleOnly.style.display = (profGender.value === 'female') ? '' : 'none';
-      if (profAvatar) profAvatar.src = p.photoDataUrl || '';
-      renderMedicalDocs();
-    };
-    if (window.API && window.API_BASE){
-      API.getProfile(currentStudent.id).then(apply).catch(()=>apply(DB.getStudentProfile(currentStudent.id)));
-    } else {
-      apply(DB.getStudentProfile(currentStudent.id));
-    }
+    const p = DB.getStudentProfile(currentStudent.id) || {};
+    profGender.value = p.gender || '';
+    profBirthISO.value = p.birthISO || '';
+    profBirthJalali.value = '';
+    if (p.birthISO){ const d = parseISODate(p.birthISO); const j = Jalali.toJalali(d.getFullYear(), d.getMonth()+1, d.getDate()); profBirthJalali.value = `${j.jy}/${String(j.jm).padStart(2,'0')}/${String(j.jd).padStart(2,'0')}`; }
+    profWeight.value = (p.weightKg != null) ? String(p.weightKg) : '';
+    profHeight.value = (p.heightCm != null) ? String(p.heightCm) : '';
+    cycleISO.value = p.cycleApproxISO || '';
+    cycleJalali.value = '';
+    if (p.cycleApproxISO){ const d2 = parseISODate(p.cycleApproxISO); const j2 = Jalali.toJalali(d2.getFullYear(), d2.getMonth()+1, d2.getDate()); cycleJalali.value = `${j2.jy}/${String(j2.jm).padStart(2,'0')}/${String(j2.jd).padStart(2,'0')}`; }
+    if (femaleOnly) femaleOnly.style.display = (profGender.value === 'female') ? '' : 'none';
+    if (profAvatar) profAvatar.src = p.photoDataUrl || '';
+    await renderMedicalDocs();
   }
   profGender?.addEventListener('change', ()=>{ if(femaleOnly) femaleOnly.style.display = (profGender.value === 'female') ? '' : 'none'; });
   profileForm?.addEventListener('submit', async (e)=>{
@@ -785,17 +812,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const patch = { gender: profGender.value || null, birthISO: profBirthISO.value || null, weightKg: profWeight.value ? Number(profWeight.value) : null, heightCm: profHeight.value ? Number(profHeight.value) : null, cycleApproxISO: cycleISO.value || null };
     const newName = (profName.value || '').trim() || currentStudent.name;
     try {
-      if (window.API && window.API_BASE) {
-        await fetch(`${API_BASE}/students/${currentStudent.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newName })
-        }).then(r=>r.json());
-        await API.updateProfile(currentStudent.id, patch);
-      } else {
-        DB.updateStudent(currentStudent.id, { name: newName });
-        DB.updateStudentProfile(currentStudent.id, patch);
-      }
+      await DB.updateStudent(currentStudent.id, { name: newName });
+      await DB.updateStudentProfile(currentStudent.id, patch);
+      currentStudent.name = newName;
+      await renderProfile();
       updateHeaderFromProfile();
       alert('ذخیره شد');
     } catch (err) {
@@ -806,24 +826,38 @@ document.addEventListener('DOMContentLoaded', () => {
   profUpload?.addEventListener('click', async ()=>{
     if(!currentStudent || !profDocFile || !profDocFile.files || profDocFile.files.length===0) return;
     const f = profDocFile.files[0];
-    if (window.API && window.API_BASE){
-      await API.uploadMedicalDoc(currentStudent.id, f);
-    } else {
-      const dataUrl = await fileToDataURL(f);
-      DB.addMedicalDoc(currentStudent.id, { name: f.name, dataUrl });
+    try {
+      await DB.addMedicalDoc(currentStudent.id, f);
+      profDocFile.value='';
+      await renderMedicalDocs();
+    } catch (err) {
+      console.error(err);
+      alert('آپلود سند انجام نشد.');
     }
-    profDocFile.value=''; renderMedicalDocs();
   });
 
   profAvatarUpload?.addEventListener('click', async ()=>{
     if(!currentStudent || !profAvatarFile || !profAvatarFile.files || profAvatarFile.files.length===0) return;
     const f = profAvatarFile.files[0]; const dataUrl = await fileToDataURL(f);
-    DB.updateStudentProfile(currentStudent.id, { photoDataUrl: dataUrl });
-    profAvatarFile.value=''; renderProfile();
-    updateHeaderFromProfile();
+    try {
+      await DB.updateStudentProfile(currentStudent.id, { photoDataUrl: dataUrl });
+      profAvatarFile.value='';
+      await renderProfile();
+      updateHeaderFromProfile();
+    } catch (err) {
+      console.error(err);
+      alert('ذخیره عکس انجام نشد.');
+    }
   });
-  profAvatarRemove?.addEventListener('click', ()=>{
-    if(!currentStudent) return; DB.updateStudentProfile(currentStudent.id, { photoDataUrl: null }); renderProfile(); updateHeaderFromProfile();
+  profAvatarRemove?.addEventListener('click', async ()=>{
+    if(!currentStudent) return;
+    try {
+      await DB.updateStudentProfile(currentStudent.id, { photoDataUrl: null });
+      await renderProfile();
+      updateHeaderFromProfile();
+    } catch (err) {
+      console.error(err);
+    }
   });
 
   function updateHeaderFromProfile(){
@@ -843,12 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   async function renderMedicalDocs(){
     if(!currentStudent || !profDocs) return;
-    let docs = [];
-    if (window.API && window.API_BASE){
-      docs = await API.listMedicalDocs(currentStudent.id);
-    } else {
-      docs = DB.listMedicalDocsForStudent(currentStudent.id);
-    }
+    const docs = await DB.listMedicalDocsForStudent(currentStudent.id);
     profDocs.innerHTML = docs.length ? '' : '<div class="muted">سندی آپلود نشده</div>';
     docs.forEach(d => {
       const el = document.createElement('div'); el.className='item';
@@ -860,15 +889,20 @@ document.addEventListener('DOMContentLoaded', () => {
     profDocs.querySelectorAll('[data-del-doc]')?.forEach(btn => {
       btn.addEventListener('click', async ()=>{
         const id = btn.getAttribute('data-del-doc');
-        if (window.API && window.API_BASE){ await API.deleteMedicalDoc(currentStudent.id, id); }
-        else { DB.deleteMedicalDoc(currentStudent.id, id); }
-        renderMedicalDocs();
+        if (!confirm('حذف این سند؟')) return;
+        try {
+          await DB.deleteMedicalDoc(currentStudent.id, id);
+          await renderMedicalDocs();
+        } catch (err) {
+          console.error(err);
+          alert('حذف سند انجام نشد.');
+        }
       });
     });
   }
 
   // Goals
-  goalForm?.addEventListener('submit', (e) => {
+  goalForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!currentStudent) return;
     const title = goalTitle.value.trim();
@@ -876,7 +910,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const dist = goalDist?.value ? Number(goalDist.value) : null;
     const paceSec = (goalPaceM?.value || goalPaceS?.value) ? (Number(goalPaceM.value||0)*60 + Number(goalPaceS.value||0)) : null;
     const durSec = (goalH?.value || goalM?.value || goalS?.value) ? (Number(goalH.value||0)*3600 + Number(goalM.value||0)*60 + Number(goalS.value||0)) : null;
-    DB.addGoal(currentStudent.id, { title, targetDistanceKm: dist, targetPaceSecPerKm: paceSec, targetDurationSec: durSec });
+    try {
+      await DB.addGoal(currentStudent.id, { title, targetDistanceKm: dist, targetPaceSecPerKm: paceSec, targetDurationSec: durSec });
+    } catch (err) {
+      console.error(err);
+      alert('ثبت هدف ناموفق بود.');
+      return;
+    }
     goalTitle.value = '';
     if (goalDist) goalDist.value = '';
     if (goalPaceM) goalPaceM.value = '';
@@ -884,13 +924,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (goalH) goalH.value = '';
     if (goalM) goalM.value = '';
     if (goalS) goalS.value = '';
-    renderGoals();
-    renderArchive();
+    await renderGoals();
+    await renderArchive();
   });
 
   async function renderGoals() {
     if (!currentStudent || !goalList) return;
-    const goals = (window.API && window.API_BASE) ? await API.listGoals(currentStudent.id) : DB.listGoalsForStudent(currentStudent.id);
+    const goals = await DB.listGoalsForStudent(currentStudent.id);
     goalList.innerHTML = goals.length ? '' : '<div class="muted">هنوز هدفی ثبت نشده است</div>';
     goals.forEach(g => {
       const el = document.createElement('div');
@@ -938,25 +978,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // bind add milestone forms
     goalList.querySelectorAll('form[data-add-ms]')?.forEach(f => {
-      f.addEventListener('submit', (e) => {
+      f.addEventListener('submit', async (e) => {
         e.preventDefault();
         const goalId = f.getAttribute('data-add-ms');
         const inp = f.querySelector('input');
         const text = (inp.value || '').trim();
         if (!text) return;
-        DB.addMilestone(goalId, text);
-        inp.value = '';
-        renderGoals();
+        try {
+          await DB.addMilestone(goalId, text);
+          inp.value = '';
+          await renderGoals();
+        } catch (err) {
+          console.error(err);
+          alert('افزودن پیش‌هدف انجام نشد.');
+        }
       });
     });
 
     // bind checkbox toggles
     goalList.querySelectorAll('input[type="checkbox"][data-goal]')?.forEach(chk => {
-      chk.addEventListener('change', () => {
+      chk.addEventListener('change', async () => {
         const goalId = chk.getAttribute('data-goal');
         const msId = chk.getAttribute('data-ms');
-        DB.toggleMilestone(goalId, msId, chk.checked);
-        renderGoals();
+        try {
+          await DB.toggleMilestone(goalId, msId, chk.checked);
+        } catch (err) {
+          console.error(err);
+          alert('بروزرسانی پیش‌هدف انجام نشد.');
+        }
+        await renderGoals();
       });
     });
 
@@ -975,44 +1025,58 @@ document.addEventListener('DOMContentLoaded', () => {
         const dur = prompt('هدف زمان (hh:mm:ss) — خالی رها کنید:', (g.targetDurationSec != null ? `${String(Math.floor(g.targetDurationSec/3600)).padStart(2,'0')}:${String(Math.floor((g.targetDurationSec%3600)/60)).padStart(2,'0')}:${String(Math.floor(g.targetDurationSec%60)).padStart(2,'0')}` : ''));
         let paceSec = null; if (pace && pace.includes(':')) { const [pm, ps] = pace.split(':'); paceSec = (Number(pm)||0)*60 + (Number(ps)||0); }
         let durSec = null; if (dur && dur.includes(':')) { const parts = dur.split(':'); const hh = Number(parts[0]||0), mm = Number(parts[1]||0), ss = Number(parts[2]||0); durSec = hh*3600 + mm*60 + ss; }
-        if (window.API && window.API_BASE) {
-          await API.updateGoal(id, { title: newTitle, targetDistanceKm: dist ? Number(dist) : null, targetPaceSecPerKm: pace ? paceSec : null, targetDurationSec: dur ? durSec : null });
-        } else {
-          DB.updateGoalTitle(id, newTitle);
-          DB.updateGoalMetrics(id, { targetDistanceKm: dist ? Number(dist) : null, targetPaceSecPerKm: pace ? paceSec : null, targetDurationSec: dur ? durSec : null });
+        try {
+          await DB.updateGoalMetrics(id, { title: newTitle, targetDistanceKm: dist ? Number(dist) : null, targetPaceSecPerKm: pace ? paceSec : null, targetDurationSec: dur ? durSec : null });
+          await renderGoals();
+        } catch (err) {
+          console.error(err);
+          alert('ویرایش هدف انجام نشد.');
         }
-        renderGoals();
       });
     });
     goalList.querySelectorAll('[data-del-goal]')?.forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-del-goal');
         if (!confirm('حذف این هدف؟')) return;
-        if (window.API && window.API_BASE) { await API.deleteGoal(id); }
-        else { DB.deleteGoal(id); }
-        renderGoals();
+        try {
+          await DB.deleteGoal(id);
+          await renderGoals();
+        } catch (err) {
+          console.error(err);
+          alert('حذف هدف انجام نشد.');
+        }
       });
     });
 
     // bind edit/delete milestone
     goalList.querySelectorAll('[data-edit-ms]')?.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const [gid, mid] = btn.getAttribute('data-edit-ms').split(':');
         const g = goals.find(x => x.id === gid);
         if (!g) return;
         const ms = (g.milestones || []).find(m => m.id === mid);
         const text = prompt('متن پیش‌هدف:', ms?.text || '');
         if (text == null) return;
-        DB.updateMilestone(gid, mid, text);
-        renderGoals();
+        try {
+          await DB.updateMilestone(gid, mid, text);
+          await renderGoals();
+        } catch (err) {
+          console.error(err);
+          alert('ویرایش پیش‌هدف انجام نشد.');
+        }
       });
     });
     goalList.querySelectorAll('[data-del-ms]')?.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const [gid, mid] = btn.getAttribute('data-del-ms').split(':');
         if (!confirm('حذف این پیش‌هدف؟')) return;
-        DB.deleteMilestone(gid, mid);
-        renderGoals();
+        try {
+          await DB.deleteMilestone(gid, mid);
+          await renderGoals();
+        } catch (err) {
+          console.error(err);
+          alert('حذف پیش‌هدف انجام نشد.');
+        }
       });
     });
   }
@@ -1027,8 +1091,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const match = p.getAttribute('data-panel') === name;
         p.hidden = !match;
       });
-      if (name === 'profile') renderProfile();
-      if (name === 'log') renderStudentCharts();
+      if (name === 'profile') renderProfile().catch(err => console.error(err));
+      if (name === 'log') renderStudentCharts().catch(err => console.error(err));
     });
   });
 
@@ -1184,26 +1248,37 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Edit/Delete payment handlers (delegate on list)
-  paymentList?.addEventListener('click', (e) => {
+  paymentList?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     const idEdit = btn.getAttribute('data-edit-payment');
     const idDel = btn.getAttribute('data-del-payment');
     if (idEdit) {
-      const p = DB.getPaymentsForStudent(currentStudent.id).find(x => x.id === idEdit);
+      const payments = await Promise.resolve(DB.getPaymentsForStudent(currentStudent.id));
+      const p = payments.find(x => x.id === idEdit);
       if (!p) return;
       const m = prompt('ماه (شمسی) به صورت YYYY-MM، مثلاً 1403-07:', (p.monthJalali || ''));
       if (m === null) return;
       const n = prompt('توضیح رسید:', p.note || '');
       const mNorm = (m || '').replace('/', '-').trim();
-      DB.updatePayment(p.id, { monthJalali: mNorm || null, month: null, note: (n || '').trim() });
-      renderPayments();
+      try {
+        await DB.updatePayment(p.id, { monthJalali: mNorm || null, month: null, note: (n || '').trim() });
+        await renderPayments();
+      } catch (err) {
+        console.error(err);
+        alert('بروزرسانی پرداخت انجام نشد.');
+      }
       return;
     }
     if (idDel) {
       if (!confirm('حذف این پرداختی؟')) return;
-      DB.deletePayment(idDel);
-      renderPayments();
+      try {
+        await DB.deletePayment(idDel);
+        await renderPayments();
+      } catch (err) {
+        console.error(err);
+        alert('حذف پرداخت ناموفق بود.');
+      }
     }
   });
 
@@ -1311,4 +1386,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const map = { 6:'sat', 0:'sun', 1:'mon', 2:'tue', 3:'wed', 4:'thu', 5:'fri' };
     return map[jsDay] || 'sat';
   }
+  })().catch(err => {
+    console.error('Student panel init failed', err);
+    alert('خطا در بارگذاری داده‌ها. لطفاً دوباره تلاش کنید.');
+  });
 });

@@ -3,7 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script> window.API_BASE = 'http://localhost:3001/api'; </script>
+  <script>
+    (function () {
+      const origin = (window.location && window.location.origin)
+        ? window.location.origin.replace(/\/$/, '')
+        : '';
+      window.API_BASE = origin + '/api';
+    })();
+  </script>
 
   <title>اپ مربی/شاگرد</title>
   <link rel="stylesheet" href="styles.css" />
