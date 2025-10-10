@@ -147,9 +147,22 @@ function ensureSchema() {
       text TEXT,
       created_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS admins (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      password_hash TEXT NOT NULL,
+      is_super INTEGER DEFAULT 0,
+      created_at TEXT
+    );
   `);
 
   ensureColumn('students', 'group_id', 'TEXT');
+  ensureColumn('students', 'phone', 'TEXT');
+  ensureColumn('students', 'phone_verified_at', 'TEXT');
+  ensureColumn('students', 'phone_verification_code', 'TEXT');
+  ensureColumn('students', 'phone_verification_expires_at', 'TEXT');
   ensureColumn('students', 'verification_code', 'TEXT');
   ensureColumn('students', 'verification_expires_at', 'TEXT');
   ensureColumn('students', 'profile_json', 'TEXT');
@@ -188,6 +201,80 @@ function computeEndDate(startDate, durationDays) {
   return `${yy}-${mm}-${dd}`;
 }
 
+function normalizePhone(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D+/g, '');
+  return digits || null;
+}
+
+// Admins --------------------------------------------------------------------
+
+function rowToAdmin(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name || '',
+    isSuper: !!row.is_super,
+    createdAt: row.created_at,
+    passwordHash: row.password_hash,
+  };
+}
+
+function countAdmins() {
+  const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM admins').get();
+  return cnt;
+}
+
+function createAdmin({ email, name, passwordHash, isSuper = false }) {
+  const id = genId('adm');
+  db.prepare('INSERT INTO admins(id, email, name, password_hash, is_super, created_at) VALUES(?,?,?,?,?,?)')
+    .run(id, email.toLowerCase(), name || '', passwordHash, isSuper ? 1 : 0, now());
+  return getAdminById(id);
+}
+
+function listAdmins() {
+  const rows = db.prepare('SELECT id, email, name, is_super, created_at FROM admins ORDER BY created_at ASC').all();
+  return rows.map(r => ({
+    id: r.id,
+    email: r.email,
+    name: r.name || '',
+    isSuper: !!r.is_super,
+    createdAt: r.created_at,
+  }));
+}
+
+function getAdminByEmail(email) {
+  if (!email) return null;
+  const row = db.prepare('SELECT * FROM admins WHERE email = ?').get(email.toLowerCase());
+  return rowToAdmin(row);
+}
+
+function getAdminById(id) {
+  const row = db.prepare('SELECT * FROM admins WHERE id = ?').get(id);
+  return rowToAdmin(row);
+}
+
+function updateAdmin(id, { name, passwordHash, isSuper }) {
+  const admin = getAdminById(id);
+  if (!admin) throw new Error('Admin not found');
+  const nextName = name !== undefined ? name : admin.name;
+  const nextHash = passwordHash !== undefined ? passwordHash : admin.passwordHash;
+  const nextSuper = isSuper !== undefined ? (isSuper ? 1 : 0) : (admin.isSuper ? 1 : 0);
+  db.prepare('UPDATE admins SET name = ?, password_hash = ?, is_super = ? WHERE id = ?')
+    .run(nextName, nextHash, nextSuper, id);
+  return getAdminById(id);
+}
+
+function deleteAdmin(id) {
+  db.prepare('DELETE FROM admins WHERE id = ?').run(id);
+}
+
+function countSuperAdminsExcluding(id) {
+  const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM admins WHERE is_super = 1 AND id <> ?').get(id);
+  return cnt;
+}
+
 // Students -------------------------------------------------------------------
 
 function rowToStudent(row) {
@@ -197,6 +284,8 @@ function rowToStudent(row) {
     email: row.email,
     verifiedAt: row.verified_at || null,
     groupId: row.group_id || null,
+    phone: row.phone || null,
+    phoneVerifiedAt: row.phone_verified_at || null,
     profile: parseJSON(row.profile_json, {}),
   };
 }
@@ -212,29 +301,74 @@ function getStudent(id) {
 }
 
 function getStudentByEmail(email) {
+  if (!email) return null;
   const row = db.prepare('SELECT * FROM students WHERE LOWER(email) = LOWER(?)').get(email);
   return row ? rowToStudent(row) : null;
 }
 
-function addStudent({ name, email, groupId }) {
-  if (!name || !email) throw new Error('نام و ایمیل الزامی است');
-  const exists = db.prepare('SELECT id FROM students WHERE LOWER(email) = LOWER(?)').get(email);
-  if (exists) throw new Error('این ایمیل قبلاً ثبت شده است');
+function getStudentByPhone(phone) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+  const row = db.prepare('SELECT * FROM students WHERE phone = ?').get(normalized);
+  return row ? rowToStudent(row) : null;
+}
+
+function addStudent({ name, email, groupId, phone }) {
+  if (!name) throw new Error('نام الزامی است');
+  const emailNorm = email ? String(email).trim() : null;
+  const phoneNorm = normalizePhone(phone);
+  if (!emailNorm && !phoneNorm) throw new Error('ایمیل یا موبایل الزامی است');
+
+  if (emailNorm) {
+    const exists = db.prepare('SELECT id FROM students WHERE LOWER(email) = LOWER(?)').get(emailNorm);
+    if (exists) throw new Error('این ایمیل قبلاً ثبت شده است');
+  }
+  if (phoneNorm) {
+    const existsPhone = db.prepare('SELECT id FROM students WHERE phone = ?').get(phoneNorm);
+    if (existsPhone) throw new Error('این شماره موبایل قبلاً ثبت شده است');
+  }
+
   const id = genId('std');
-  db.prepare('INSERT INTO students(id, name, email, verified_at, profile_json, group_id) VALUES(?,?,?,?,?,?)')
-    .run(id, name, email, null, JSON.stringify({}), groupId || null);
+  db.prepare(`INSERT INTO students(
+      id, name, email, verified_at, profile_json, group_id, phone, phone_verified_at
+    ) VALUES(?,?,?,?,?,?,?,?)`)
+    .run(id, name, emailNorm, null, JSON.stringify({}), groupId || null, phoneNorm, null);
   return getStudent(id);
 }
 
-function updateStudent(id, { name, email, groupId }) {
+function updateStudent(id, { name, email, groupId, phone }) {
   const current = db.prepare('SELECT * FROM students WHERE id = ?').get(id);
   if (!current) throw new Error('Student not found');
-  if (email && email.toLowerCase() !== current.email.toLowerCase()) {
-    const exists = db.prepare('SELECT id FROM students WHERE LOWER(email) = LOWER(?) AND id <> ?').get(email, id);
+
+  const emailNorm = email !== undefined ? (email ? String(email).trim() : null) : current.email;
+  const phoneNorm = phone !== undefined ? normalizePhone(phone) : current.phone;
+
+  if (!emailNorm && !phoneNorm) throw new Error('ایمیل یا موبایل الزامی است');
+
+  if (email !== undefined && emailNorm && emailNorm.toLowerCase() !== (current.email || '').toLowerCase()) {
+    const exists = db.prepare('SELECT id FROM students WHERE LOWER(email) = LOWER(?) AND id <> ?').get(emailNorm, id);
     if (exists) throw new Error('این ایمیل قبلاً ثبت شده است');
   }
-  db.prepare('UPDATE students SET name = ?, email = ?, group_id = ? WHERE id = ?')
-    .run(name ?? current.name, email ?? current.email, groupId ?? current.group_id ?? null, id);
+
+  if (phone !== undefined) {
+    if (phoneNorm) {
+      const existsPhone = db.prepare('SELECT id FROM students WHERE phone = ? AND id <> ?').get(phoneNorm, id);
+      if (existsPhone) throw new Error('این شماره موبایل قبلاً ثبت شده است');
+    }
+    if (phoneNorm !== current.phone) {
+      db.prepare('UPDATE students SET phone_verified_at = NULL, phone_verification_code = NULL, phone_verification_expires_at = NULL WHERE id = ?')
+        .run(id);
+    }
+  }
+
+  db.prepare('UPDATE students SET name = ?, email = ?, group_id = ?, phone = ? WHERE id = ?')
+    .run(
+      name ?? current.name,
+      emailNorm ?? null,
+      groupId ?? current.group_id ?? null,
+      phoneNorm ?? null,
+      id
+    );
   return getStudent(id);
 }
 
@@ -275,9 +409,16 @@ function markStudentVerified(id) {
   return getStudent(id);
 }
 
+function markStudentPhoneVerified(id) {
+  db.prepare('UPDATE students SET phone_verified_at = ?, phone_verification_code = NULL, phone_verification_expires_at = NULL WHERE id = ?')
+    .run(now(), id);
+  return getStudent(id);
+}
+
 function startEmailVerification(studentId) {
-  const student = db.prepare('SELECT id FROM students WHERE id = ?').get(studentId);
+  const student = db.prepare('SELECT id, email FROM students WHERE id = ?').get(studentId);
   if (!student) throw new Error('Student not found');
+  if (!student.email) throw new Error('ایمیل برای این شاگرد ثبت نشده است');
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = Date.now() + 10 * 60 * 1000;
   db.prepare('UPDATE students SET verification_code = ?, verification_expires_at = ? WHERE id = ?')
@@ -292,6 +433,29 @@ function verifyStudentEmail(studentId, code) {
   const ok = student.verification_code === String(code).trim() && Date.now() <= expires;
   if (ok) {
     markStudentVerified(studentId);
+    return true;
+  }
+  return false;
+}
+
+function startPhoneVerification(studentId) {
+  const student = db.prepare('SELECT id, phone FROM students WHERE id = ?').get(studentId);
+  if (!student) throw new Error('Student not found');
+  if (!student.phone) throw new Error('شماره موبایل برای این شاگرد ثبت نشده است');
+  const code = String(Math.floor(100000 + Math.random() * 900000)).padStart(6, '0');
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  db.prepare('UPDATE students SET phone_verification_code = ?, phone_verification_expires_at = ? WHERE id = ?')
+    .run(code, String(expiresAt), studentId);
+  return { code, expiresAt };
+}
+
+function verifyStudentPhone(studentId, code) {
+  const student = db.prepare('SELECT phone_verification_code, phone_verification_expires_at FROM students WHERE id = ?').get(studentId);
+  if (!student || !student.phone_verification_code) return false;
+  const expires = parseInt(student.phone_verification_expires_at || '0', 10);
+  const ok = student.phone_verification_code === String(code).trim() && Date.now() <= expires;
+  if (ok) {
+    markStudentPhoneVerified(studentId);
     return true;
   }
   return false;
@@ -824,12 +988,16 @@ module.exports = {
   listStudents,
   getStudent,
   getStudentByEmail,
+  getStudentByPhone,
   addStudent,
   updateStudent,
   deleteStudent,
   markStudentVerified,
+  markStudentPhoneVerified,
   startEmailVerification,
   verifyStudentEmail,
+  startPhoneVerification,
+  verifyStudentPhone,
   getProfile,
   updateProfile,
 
@@ -879,6 +1047,15 @@ module.exports = {
   addComment,
   listDayComments,
   addDayComment,
+
+  countAdmins,
+  createAdmin,
+  listAdmins,
+  getAdminByEmail,
+  getAdminById,
+  updateAdmin,
+  deleteAdmin,
+  countSuperAdminsExcluding,
 
   defaultWeek,
   seedDemo,

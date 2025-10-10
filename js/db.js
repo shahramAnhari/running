@@ -33,6 +33,12 @@
     return Array.isArray(arr) ? arr.map(item => (item && typeof item === 'object' ? { ...item } : item)) : [];
   }
 
+  function normalizePhone(phone) {
+    if (!phone) return null;
+    const digits = String(phone).replace(/\D+/g, '');
+    return digits || null;
+  }
+
   function invalidateStudentCaches(studentId) {
     caches.goals.delete(studentId);
     caches.logs.delete(studentId);
@@ -202,6 +208,11 @@
       const lower = String(email).toLowerCase();
       return state.students.find(s => (s.email || '').toLowerCase() === lower) || null;
     },
+    getStudentByPhone(phone) {
+      const normalized = normalizePhone(phone);
+      if (!normalized) return null;
+      return state.students.find(s => normalizePhone(s.phone) === normalized) || null;
+    },
     async addStudent(payload) {
       const student = await API.addStudent(payload);
       student.profile = student.profile || {};
@@ -213,6 +224,18 @@
       const idx = state.students.findIndex(s => s.id === id);
       if (idx >= 0) state.students[idx] = Object.assign({}, state.students[idx], updated);
       return updated;
+    },
+    async refreshStudent(id) {
+      const data = await API.getStudent(id);
+      if (data) {
+        const idx = state.students.findIndex(s => s.id === id);
+        if (idx >= 0) {
+          state.students[idx] = data;
+        } else {
+          state.students.push(data);
+        }
+      }
+      return data;
     },
     async deleteStudent(id) {
       await API.deleteStudent(id);
@@ -237,6 +260,26 @@
         if (res?.ok) {
           const s = findStudent(id);
           if (s) s.verifiedAt = new Date().toISOString();
+        }
+        return res?.ok || false;
+      });
+    },
+    async markStudentPhoneVerified(id) {
+      const res = await API.manualPhoneVerify(id);
+      if (res && res.ok) {
+        const s = findStudent(id);
+        if (s) s.phoneVerifiedAt = new Date().toISOString();
+      }
+      return res;
+    },
+    startPhoneVerification(id) {
+      return API.startPhoneVerification(id);
+    },
+    verifyStudentPhone(id, code) {
+      return API.confirmPhoneVerification(id, code).then(res => {
+        if (res?.ok) {
+          const s = findStudent(id);
+          if (s) s.phoneVerifiedAt = new Date().toISOString();
         }
         return res?.ok || false;
       });

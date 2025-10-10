@@ -35,6 +35,7 @@ async function initCoach() {
   const studentForm = document.getElementById('studentForm');
   const studentName = document.getElementById('studentName');
   const studentEmail = document.getElementById('studentEmail');
+  const studentPhone = document.getElementById('studentPhone');
   const studentGroup = document.getElementById('studentGroup');
   const studentList = document.getElementById('studentList');
 
@@ -105,7 +106,8 @@ async function initCoach() {
 
     // students
     students.forEach(s => {
-      const os = document.createElement('option'); os.value = s.id; os.textContent = `${s.name} (${s.email})`; assignTargetStudent.appendChild(os);
+      const contact = s.email || s.phone || 'بدون اطلاعات تماس';
+      const os = document.createElement('option'); os.value = s.id; os.textContent = `${s.name} (${contact})`; assignTargetStudent.appendChild(os);
     });
 
     // payment filter students (+ All)
@@ -113,7 +115,8 @@ async function initCoach() {
       paymentFilterStudent.innerHTML = '';
       const all = document.createElement('option'); all.value = ''; all.textContent = 'همه شاگردها'; paymentFilterStudent.appendChild(all);
       students.forEach(s => {
-        const o = document.createElement('option'); o.value = s.id; o.textContent = `${s.name} (${s.email})`;
+        const contact = s.email || s.phone || 'بدون اطلاعات تماس';
+        const o = document.createElement('option'); o.value = s.id; o.textContent = `${s.name} (${contact})`;
         paymentFilterStudent.appendChild(o);
       });
     }
@@ -143,7 +146,8 @@ async function initCoach() {
       goalFilterStudent.innerHTML = '';
       const all = document.createElement('option'); all.value = ''; all.textContent = 'یک شاگرد را انتخاب کنید'; goalFilterStudent.appendChild(all);
       students.forEach(s => {
-        const o = document.createElement('option'); o.value = s.id; o.textContent = `${s.name} (${s.email})`;
+        const contact = s.email || s.phone || 'بدون اطلاعات تماس';
+        const o = document.createElement('option'); o.value = s.id; o.textContent = `${s.name} (${contact})`;
         goalFilterStudent.appendChild(o);
       });
     }
@@ -246,24 +250,58 @@ async function initCoach() {
     studentList.innerHTML = students.length ? '' : '<div class="muted">شاگردی ثبت نشده است</div>';
     students.forEach(s => {
       const gName = groups.find(g => g.studentIds.includes(s.id))?.name || '—';
+      const emailLabel = s.email ? escapeHtml(s.email) : '—';
+      const phoneLabel = s.phone ? escapeHtml(s.phone) : '—';
+      const emailStatus = s.email
+        ? (s.verifiedAt ? '<span class="chip">ایمیل تایید شده</span>' : '<span class="chip">ایمیل تایید نشده</span>')
+        : '<span class="chip">ایمیل ثبت نشده</span>';
+      const phoneStatus = s.phone
+        ? (s.phoneVerifiedAt ? '<span class="chip">موبایل تایید شده</span>' : '<span class="chip">موبایل تایید نشده</span>')
+        : '<span class="chip">موبایل ثبت نشده</span>';
       const el = document.createElement('div');
       el.className = 'item';
       el.innerHTML = `
         <div class="row-between">
-          <div><strong>${escapeHtml(s.name)}</strong> <span class="muted">(${escapeHtml(s.email)}) — گروه: ${escapeHtml(gName)}</span> ${s.verifiedAt ? '<span class="chip">تایید شده</span>' : '<span class="chip">در انتظار تایید</span>'}</div>
-          <div class="actions">
+          <div>
+            <strong>${escapeHtml(s.name)}</strong>
+            <div class="muted">گروه: ${escapeHtml(gName)}</div>
+            <div class="muted">ایمیل: ${emailLabel}</div>
+            <div class="muted">موبایل: ${phoneLabel}</div>
+            <div class="chips" style="margin-top:6px">${emailStatus} ${phoneStatus}</div>
+          </div>
+          <div class="actions" data-actions>
             <button class="btn-sm" data-edit-student="${s.id}">ویرایش</button>
             <button class="btn-sm danger" data-del-student="${s.id}">حذف</button>
-            ${s.verifiedAt ? '' : `<button class="btn-sm" data-verify-student="${s.id}">تایید دستی</button>`}
           </div>
         </div>`;
       studentList.appendChild(el);
+      const actionsBox = el.querySelector('[data-actions]');
+      if (!s.verifiedAt && s.email) {
+        const verifyEmailBtn = document.createElement('button');
+        verifyEmailBtn.className = 'btn-sm';
+        verifyEmailBtn.textContent = 'تایید ایمیل';
+        verifyEmailBtn.dataset.verifyStudent = s.id;
+        actionsBox.appendChild(verifyEmailBtn);
+      }
+      if (!s.phoneVerifiedAt && s.phone) {
+        const verifyPhoneBtn = document.createElement('button');
+        verifyPhoneBtn.className = 'btn-sm';
+        verifyPhoneBtn.textContent = 'تایید موبایل';
+        verifyPhoneBtn.dataset.verifyPhone = s.id;
+        actionsBox.appendChild(verifyPhoneBtn);
+      }
       el.querySelector('[data-edit-student]')?.addEventListener('click', async () => {
         const newName = prompt('نام جدید:', s.name);
         if (newName == null) return;
-        const newEmail = prompt('ایمیل جدید:', s.email);
+        const newEmail = prompt('ایمیل جدید (خالی یعنی حذف):', s.email || '');
+        const newPhone = prompt('شماره موبایل جدید (خالی یعنی حذف):', s.phone || '');
+        const payload = {
+          name: (newName ?? '').trim() || s.name,
+          email: newEmail != null ? newEmail.trim() : s.email,
+          phone: newPhone != null ? newPhone.trim() : s.phone,
+        };
         try {
-          await DB.updateStudent(s.id, { name: newName.trim() || s.name, email: (newEmail ?? '').trim() || s.email });
+          await DB.updateStudent(s.id, payload);
           await renderStudents();
           refreshSelects();
         } catch (err) { alert(err.message || 'خطا'); }
@@ -287,7 +325,16 @@ async function initCoach() {
           await renderStudents();
         } catch (err) {
           console.error(err);
-          alert('خطا در تایید شاگرد');
+          alert('خطا در تایید ایمیل شاگرد');
+        }
+      });
+      el.querySelector('[data-verify-phone]')?.addEventListener('click', async () => {
+        try {
+          await DB.markStudentPhoneVerified(s.id);
+          await renderStudents();
+        } catch (err) {
+          console.error(err);
+          alert('خطا در تایید موبایل شاگرد');
         }
       });
     });
@@ -817,12 +864,21 @@ async function initCoach() {
     e.preventDefault();
     const name = studentName.value.trim();
     const email = studentEmail.value.trim();
+    const phone = studentPhone.value.trim();
     const groupId = studentGroup.value;
-    if (!name || !email || !groupId) return;
+    if (!name || !groupId) {
+      alert('نام و گروه الزامی هستند.');
+      return;
+    }
+    if (!email && !phone) {
+      alert('حداقل یکی از ایمیل یا موبایل را وارد کنید.');
+      return;
+    }
     try {
-      await DB.addStudent({ name, email, groupId });
+      await DB.addStudent({ name, email: email || null, phone: phone || null, groupId });
       studentName.value = '';
       studentEmail.value = '';
+      if (studentPhone) studentPhone.value = '';
       await renderStudents();
       await renderGroups();
       refreshSelects();

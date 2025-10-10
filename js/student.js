@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const loginForm = document.getElementById('loginForm');
   const loginEmail = document.getElementById('loginEmail');
+  const loginPhone = document.getElementById('loginPhone');
   const rememberMe = document.getElementById('rememberMe');
   const loginMsg = document.getElementById('loginMsg');
   const appArea = document.getElementById('appArea');
@@ -18,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyCodeInput = document.getElementById('verifyCode');
   const confirmCodeBtn = document.getElementById('confirmCode');
   const verifyMsg = document.getElementById('verifyMsg');
+  const verifyInstruction = document.getElementById('verifyInstruction');
 
   // Sidebar panels
   const sideLinks = document.querySelectorAll('.side-link');
@@ -113,39 +115,177 @@ document.addEventListener('DOMContentLoaded', () => {
   const studentNameHdr = document.getElementById('studentNameHdr');
   const studentAvatarHdr = document.getElementById('studentAvatarHdr');
 
+  const logoutBtn = document.getElementById('logoutBtn');
+  const loginSection = loginForm ? loginForm.closest('section') : null;
+
   let currentStudent = null;
   let currentJYear = null;
+  let currentLoginMethod = null; // 'email' | 'phone'
+
+  function normalizePhone(phone) {
+    if (!phone) return null;
+    const digits = String(phone).replace(/\D+/g, '');
+    return digits || null;
+  }
+
+  function enterApp() {
+    if (appArea) appArea.style.display = '';
+    if (loginSection) loginSection.style.display = 'none';
+  }
+
+  function showLoginView() {
+    if (appArea) appArea.style.display = 'none';
+    if (loginSection) loginSection.style.display = '';
+  }
+
+  function hideVerifyArea() {
+    if (verifyArea) verifyArea.style.display = 'none';
+    if (verifyMsg) verifyMsg.textContent = '';
+    if (verifyCodeInput) verifyCodeInput.value = '';
+  }
+
+  function showVerifyArea(method) {
+    currentLoginMethod = method;
+    if (!verifyArea) return;
+    verifyArea.style.display = '';
+    if (verifyInstruction) {
+      verifyInstruction.textContent = method === 'phone'
+        ? 'شماره موبایل شما تایید نشده است. لطفاً کد ارسال‌شده را وارد کنید.'
+        : 'ایمیل شما تایید نشده است. لطفاً کد ارسال‌شده را وارد کنید.';
+    }
+    if (verifyMsg) verifyMsg.textContent = '';
+    if (verifyCodeInput) verifyCodeInput.value = '';
+  }
+
+  async function sendVerificationCode(auto = false) {
+    if (!currentStudent || !currentLoginMethod) return;
+    try {
+      if (currentLoginMethod === 'email') {
+        const res = await DB.startEmailVerification(currentStudent.id);
+        if (verifyMsg) verifyMsg.textContent = `کد تایید ایمیل ارسال شد. (برای تست: ${res.code || '******'})`;
+      } else {
+        const res = await DB.startPhoneVerification(currentStudent.id);
+        if (verifyMsg) verifyMsg.textContent = `کد تایید پیامک ارسال شد. (برای تست: ${res.code || '******'})`;
+      }
+    } catch (err) {
+      console.error(err);
+      if (!auto && verifyMsg) verifyMsg.textContent = err.message || 'خطا در ارسال کد. لطفاً دوباره تلاش کنید.';
+    }
+  }
+
+  async function finalizeLogin() {
+    if (!currentStudent) return;
+    try {
+      const refreshed = await DB.refreshStudent(currentStudent.id);
+      if (refreshed) currentStudent = refreshed;
+    } catch (err) {
+      console.error('Failed to refresh student', err);
+    }
+    hideVerifyArea();
+    loginMsg.textContent = `خوش آمدید ${currentStudent.name}`;
+    enterApp();
+    await loadStudentWorkspace();
+  }
+
+  function handleLogout() {
+    currentStudent = null;
+    currentLoginMethod = null;
+    currentJYear = null;
+    hideVerifyArea();
+    showLoginView();
+    loginMsg.textContent = '';
+    if (loginForm) {
+      loginForm.reset();
+      const remember = isRememberOn();
+      if (rememberMe) rememberMe.checked = remember;
+      if (remember) {
+        const savedEmail = getRememberedEmail();
+        const savedPhone = getRememberedPhone();
+        if (loginEmail) loginEmail.value = savedEmail || '';
+        if (loginPhone) loginPhone.value = savedEmail ? '' : (savedPhone || '');
+      } else {
+        if (loginEmail) loginEmail.value = '';
+        if (loginPhone) loginPhone.value = '';
+      }
+    }
+    if (studentPrograms) studentPrograms.innerHTML = '';
+    if (paymentList) paymentList.innerHTML = '';
+    if (goalList) goalList.innerHTML = '';
+    if (archiveList) archiveList.innerHTML = '';
+    if (coachLogList) coachLogList.innerHTML = '';
+  }
 
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = (loginEmail.value || '').trim();
-    if (!email) return;
+    loginMsg.textContent = '';
+    hideVerifyArea();
 
-    // Save/clear remember preference
-    setRemember(email, !!rememberMe?.checked);
+    const email = (loginEmail?.value || '').trim();
+    const phoneRaw = (loginPhone?.value || '').trim();
+    const phoneNorm = normalizePhone(phoneRaw);
 
-    const s = DB.getStudentByEmail(email);
-    if (!s) {
-      loginMsg.textContent = 'شاگردی با این ایمیل یافت نشد. از مربی بخواهید شما را اضافه کند. یا در پنل مربی «داده‌ی نمونه» را اضافه کنید و با ali@example.com وارد شوید.';
-      currentStudent = null;
-      studentPrograms.innerHTML = '';
-      appArea.style.display = 'none';
+    if (!email && !phoneNorm) {
+      loginMsg.textContent = 'لطفاً ایمیل یا شماره موبایل را وارد کنید.';
       return;
     }
-    currentStudent = s;
-    if (s.verifiedAt) {
-      loginMsg.textContent = `خوش آمدید ${s.name}`;
-      appArea.style.display = '';
-      // hide login card after success
-      try { loginForm.closest('section').style.display = 'none'; } catch {}
-      verifyArea.style.display = 'none';
-      await loadStudentWorkspace();
-    } else {
-      loginMsg.textContent = `${s.name} عزیز، لطفاً ایمیل خود را تایید کنید.`;
-      verifyArea.style.display = '';
-      appArea.style.display = 'none';
-      verifyMsg.textContent = '';
-      verifyCodeInput.value = '';
+
+    try {
+      if (email) {
+        let student = DB.getStudentByEmail(email);
+        if (!student) {
+          loginMsg.textContent = 'شاگردی با این ایمیل یافت نشد. از مربی بخواهید شما را اضافه کند.';
+          currentStudent = null;
+          return;
+        }
+        currentStudent = await DB.refreshStudent(student.id) || student;
+        currentLoginMethod = 'email';
+        if (rememberMe?.checked) {
+          setRemember(email, true);
+          setRememberPhone('', false);
+        } else {
+          setRemember(email, false);
+          setRememberPhone('', false);
+        }
+        if (currentStudent.verifiedAt) {
+          await finalizeLogin();
+        } else {
+          loginMsg.textContent = `${currentStudent.name} عزیز، لطفاً ایمیل خود را تایید کنید.`;
+          showVerifyArea('email');
+          await sendVerificationCode(true);
+        }
+      } else {
+        let student = DB.getStudentByPhone(phoneNorm);
+        if (!student) {
+          try {
+            student = await API.getStudentByPhone(phoneNorm);
+            if (student) await DB.refreshStudent(student.id);
+          } catch {}
+        }
+        if (!student) {
+          loginMsg.textContent = 'شاگردی با این شماره موبایل یافت نشد. از مربی بخواهید شما را اضافه کند.';
+          currentStudent = null;
+          return;
+        }
+        currentStudent = await DB.refreshStudent(student.id) || student;
+        currentLoginMethod = 'phone';
+        if (rememberMe?.checked) {
+          setRemember('', false);
+          setRememberPhone(phoneRaw, true);
+        } else {
+          setRemember('', false);
+          setRememberPhone('', false);
+        }
+        if (currentStudent.phoneVerifiedAt) {
+          await finalizeLogin();
+        } else {
+          loginMsg.textContent = `${currentStudent.name} عزیز، لطفاً موبایل خود را تایید کنید.`;
+          showVerifyArea('phone');
+          await sendVerificationCode(true);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      loginMsg.textContent = err.message || 'خطا در ورود';
     }
   });
 
@@ -174,41 +314,37 @@ document.addEventListener('DOMContentLoaded', () => {
     initJDatePicker('p');
     initJDatePicker('c');
     await renderProfile();
-    updateHeaderFromProfile();
+      updateHeaderFromProfile();
   }
 
   sendCodeBtn?.addEventListener('click', async () => {
-    if (!currentStudent) return;
-    try {
-      const res = await DB.startEmailVerification(currentStudent.id);
-      verifyMsg.textContent = `کد تایید ارسال شد. (نمونه: ${res.code || '******'})`;
-    } catch (err) {
-      console.error(err);
-      verifyMsg.textContent = 'خطا در ارسال کد. لطفاً دوباره تلاش کنید.';
-    }
+    if (!currentStudent || !currentLoginMethod) return;
+    await sendVerificationCode(false);
   });
 
   confirmCodeBtn?.addEventListener('click', async () => {
-    if (!currentStudent) return;
+    if (!currentStudent || !currentLoginMethod) return;
     const code = (verifyCodeInput.value || '').trim();
     if (!code) { verifyMsg.textContent = 'کد را وارد کنید'; return; }
     let ok = false;
     try {
-      ok = await DB.verifyStudentEmail(currentStudent.id, code);
+      if (currentLoginMethod === 'email') {
+        ok = await DB.verifyStudentEmail(currentStudent.id, code);
+      } else {
+        ok = await DB.verifyStudentPhone(currentStudent.id, code);
+      }
     } catch (err) {
       console.error(err);
     }
     if (ok) {
-      verifyMsg.textContent = 'ایمیل تایید شد!';
-      loginMsg.textContent = `خوش آمدید ${currentStudent.name}`;
-      verifyArea.style.display = 'none';
-      appArea.style.display = '';
-      try { loginForm.closest('section').style.display = 'none'; } catch {}
-      await loadStudentWorkspace();
+      verifyMsg.textContent = currentLoginMethod === 'email' ? 'ایمیل تایید شد!' : 'موبایل تایید شد!';
+      await finalizeLogin();
     } else {
       verifyMsg.textContent = 'کد نامعتبر است یا منقضی شده است.';
     }
   });
+
+  logoutBtn?.addEventListener('click', handleLogout);
 
   function renderPrograms() {
     if (!currentStudent) return;
@@ -1111,18 +1247,45 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function delCookie(name){ setCookie(name, '', -1); }
 
-  function setRemember(email, on){
-    if(on){
-      setCookie('csa_last_email', email, 180);
+  function updateRememberFlag() {
+    const hasEmail = !!(getCookie('csa_last_email') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_email') : ''));
+    const hasPhone = !!(getCookie('csa_last_phone') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_phone') : ''));
+    if (hasEmail || hasPhone) {
       setCookie('csa_remember', '1', 180);
-      try { localStorage.setItem('csa_last_email', email); localStorage.setItem('csa_remember','1'); } catch {}
+      try { localStorage.setItem('csa_remember', '1'); } catch {}
     } else {
-      delCookie('csa_last_email'); delCookie('csa_remember');
-      try { localStorage.removeItem('csa_last_email'); localStorage.removeItem('csa_remember'); } catch {}
+      delCookie('csa_remember');
+      try { localStorage.removeItem('csa_remember'); } catch {}
     }
   }
+
+  function setRemember(email, on){
+    if(on && email){
+      setCookie('csa_last_email', email, 180);
+      try { localStorage.setItem('csa_last_email', email); } catch {}
+    } else {
+      delCookie('csa_last_email');
+      try { localStorage.removeItem('csa_last_email'); } catch {}
+    }
+    updateRememberFlag();
+  }
+
+  function setRememberPhone(phone, on){
+    if(on && phone){
+      setCookie('csa_last_phone', phone, 180);
+      try { localStorage.setItem('csa_last_phone', phone); } catch {}
+    } else {
+      delCookie('csa_last_phone');
+      try { localStorage.removeItem('csa_last_phone'); } catch {}
+    }
+    updateRememberFlag();
+  }
+
   function getRememberedEmail(){
     return getCookie('csa_last_email') || (typeof localStorage!=='undefined' ? localStorage.getItem('csa_last_email') : '') || '';
+  }
+  function getRememberedPhone(){
+    return getCookie('csa_last_phone') || (typeof localStorage!=='undefined' ? localStorage.getItem('csa_last_phone') : '') || '';
   }
   function isRememberOn(){
     const c = getCookie('csa_remember');
@@ -1132,11 +1295,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Auto-fill and optional auto-login
   (function initRemember(){
-    const last = getRememberedEmail();
-    if(last && loginEmail){ loginEmail.value = last; if(rememberMe) rememberMe.checked = isRememberOn(); }
-    if(last && isRememberOn()){
-      // Try auto-login using the saved email
-      setTimeout(()=>{ try { loginForm?.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true })); } catch{} }, 0);
+    const lastEmail = getRememberedEmail();
+    const lastPhone = getRememberedPhone();
+    if(lastEmail && loginEmail){ loginEmail.value = lastEmail; }
+    if(lastPhone && loginPhone){ loginPhone.value = lastPhone; }
+    if(rememberMe) rememberMe.checked = isRememberOn();
+    if(isRememberOn()){
+      const hasEmail = !!lastEmail;
+      const hasPhone = !hasEmail && !!lastPhone;
+      if (hasEmail && loginEmail) {
+        setTimeout(()=>{ try { loginForm?.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true })); } catch{} }, 0);
+      } else if (hasPhone && loginPhone) {
+        setTimeout(()=>{ try { loginForm?.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true })); } catch{} }, 0);
+      }
     }
   })();
 

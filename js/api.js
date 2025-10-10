@@ -44,6 +44,9 @@ const API = {
   getStudent(id) {
     return request(`/students/${encodeURIComponent(id)}`);
   },
+  getStudentByPhone(phone) {
+    return request(`/students/by-phone?phone=${encodeURIComponent(phone)}`);
+  },
   addStudent(payload) {
     return jsonRequest('/students', 'POST', payload);
   },
@@ -61,6 +64,15 @@ const API = {
   },
   manualVerify(id) {
     return jsonRequest(`/students/${encodeURIComponent(id)}/verify/manual`, 'POST');
+  },
+  startPhoneVerification(id) {
+    return jsonRequest(`/students/${encodeURIComponent(id)}/phone/verify/start`, 'POST');
+  },
+  confirmPhoneVerification(id, code) {
+    return jsonRequest(`/students/${encodeURIComponent(id)}/phone/verify/confirm`, 'POST', { code });
+  },
+  manualPhoneVerify(id) {
+    return jsonRequest(`/students/${encodeURIComponent(id)}/phone/verify/manual`, 'POST');
   },
   getProfile(studentId) {
     return request(`/students/${encodeURIComponent(studentId)}/profile`);

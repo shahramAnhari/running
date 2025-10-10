@@ -32,20 +32,24 @@
     <section class="card login-card">
       <h2>ورود</h2>
       <form id="loginForm">
-        <label>ایمیل
-          <input type="email" id="loginEmail" required placeholder="example@mail.com" />
+        <label>ایمیل (اختیاری)
+          <input type="email" id="loginEmail" placeholder="example@mail.com" />
+        </label>
+        <label>شماره موبایل (اختیاری)
+          <input type="tel" id="loginPhone" placeholder="مثلاً 09..." />
         </label>
         <label style="display:flex; gap:8px; align-items:center;">
           <input type="checkbox" id="rememberMe" checked />
-          <span>ایمیل مرا به خاطر بسپار</span>
+          <span>اطلاعات ورود را به خاطر بسپار</span>
         </label>
         <button type="submit">مشاهده برنامه‌ها</button>
       </form>
+      <div class="muted" style="margin-top:8px">برای ورود، یکی از ایمیل یا موبایل را وارد کنید. در اولین ورود، کد تایید برای شما نمایش داده می‌شود.</div>
       <div id="loginMsg" class="muted"></div>
       <div id="verifyArea" class="verify-area" style="display:none">
-        <div class="muted">ایمیل شما تایید نشده است. کد تایید را وارد کنید.</div>
+        <div class="muted" id="verifyInstruction">ایمیل شما تایید نشده است. کد تایید را وارد کنید.</div>
         <div class="row">
-          <button type="button" id="sendCode">ارسال کد تایید</button>
+          <button type="button" id="sendCode">ارسال کد</button>
           <input type="text" id="verifyCode" inputmode="numeric" placeholder="کد ۶ رقمی" style="max-width:160px" />
           <button type="button" id="confirmCode">تایید</button>
         </div>
@@ -63,6 +67,9 @@
         <button class="side-link" data-panel="pace">محاسبه پیس</button>
         <button class="side-link" data-panel="log">دفترچه تمرین</button>
         <button class="side-link" data-panel="profile">پروفایل</button>
+        <div class="side-footer">
+          <button id="logoutBtn" class="side-secondary danger">خروج</button>
+        </div>
       </aside>
       <main class="content">
         <section class="panel" data-panel="programs">

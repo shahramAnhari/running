@@ -3,6 +3,8 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('./db');
 
 const app = express();
@@ -35,6 +37,9 @@ function makeStorage(subDir) {
 const docUpload = multer({ storage: makeStorage('docs') });
 const paymentUpload = multer({ storage: makeStorage('payments') });
 
+const JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'change-this-secret';
+const TOKEN_EXPIRY = process.env.ADMIN_JWT_EXPIRES_IN || '4h';
+
 // ---------------------------------------------------------------------------
 // Helpers
 
@@ -56,6 +61,165 @@ function paymentResponse(p) {
   });
 }
 
+function sanitizeAdmin(admin) {
+  if (!admin) return null;
+  return {
+    id: admin.id,
+    email: admin.email,
+    name: admin.name || '',
+    isSuper: !!admin.isSuper,
+    createdAt: admin.createdAt,
+  };
+}
+
+function getAuthToken(req) {
+  const header = req.headers.authorization || req.headers.Authorization;
+  if (!header || typeof header !== 'string') return null;
+  const [scheme, token] = header.split(' ');
+  if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
+  return token.trim();
+}
+
+function requireAdmin(req, res, next) {
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'توکن ارسال نشده' });
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'توکن نامعتبر است' });
+  }
+  const admin = db.getAdminById(payload.sub);
+  if (!admin) return res.status(401).json({ error: 'ادمین یافت نشد' });
+  req.admin = sanitizeAdmin(admin);
+  next();
+}
+
+function requireSuperAdmin(req, res, next) {
+  requireAdmin(req, res, () => {
+    if (!req.admin?.isSuper) return res.status(403).json({ error: 'دسترسی مجاز نیست' });
+    next();
+  });
+}
+
+function signToken(admin) {
+  return jwt.sign(
+    { sub: admin.id, email: admin.email, isSuper: !!admin.isSuper },
+    JWT_SECRET,
+    { expiresIn: TOKEN_EXPIRY }
+  );
+}
+
+function assertPasswordStrong(password) {
+  if (!password || password.length < 6) {
+    throw new Error('پسورد باید حداقل ۶ کاراکتر باشد');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin Auth
+
+app.get('/api/admin/bootstrap/status', (_req, res) => {
+  res.json({ hasAdmin: db.countAdmins() > 0 });
+});
+
+app.post('/api/admin/bootstrap', (req, res) => {
+  try {
+    const total = db.countAdmins();
+    if (total > 0) return res.status(403).json({ error: 'ادمین قبلاً تعریف شده است' });
+    const { email, password, name } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل و پسورد الزامی است' });
+    assertPasswordStrong(password);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'ایمیل نامعتبر است' });
+    const hash = bcrypt.hashSync(password, 10);
+    const admin = db.createAdmin({ email, name, passwordHash: hash, isSuper: true });
+    const token = signToken(admin);
+    res.json({ token, admin: sanitizeAdmin(admin) });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در ساخت ادمین' });
+  }
+});
+
+app.post('/api/admin/login', (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل/پسورد الزامی است' });
+    const admin = db.getAdminByEmail(email);
+    if (!admin) return res.status(401).json({ error: 'اطلاعات ورود نادرست است' });
+    const ok = bcrypt.compareSync(password, admin.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'اطلاعات ورود نادرست است' });
+    const token = signToken(admin);
+    res.json({ token, admin: sanitizeAdmin(admin) });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطای ورود' });
+  }
+});
+
+app.get('/api/admin/me', requireAdmin, (req, res) => {
+  res.json({ admin: req.admin });
+});
+
+app.get('/api/admins', requireSuperAdmin, (_req, res) => {
+  res.json(db.listAdmins());
+});
+
+app.post('/api/admins', requireSuperAdmin, (req, res) => {
+  try {
+    const { email, password, name, isSuper } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل/پسورد الزامی است' });
+    assertPasswordStrong(password);
+    if (db.getAdminByEmail(email)) return res.status(400).json({ error: 'این ایمیل قبلاً ثبت شده است' });
+    const admin = db.createAdmin({
+      email,
+      name,
+      passwordHash: bcrypt.hashSync(password, 10),
+      isSuper: !!isSuper,
+    });
+    res.json(sanitizeAdmin(admin));
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در ایجاد ادمین' });
+  }
+});
+
+app.put('/api/admins/:id', requireSuperAdmin, (req, res) => {
+  try {
+    const { name, password, isSuper } = req.body || {};
+    let passwordHash;
+    if (password !== undefined) {
+      assertPasswordStrong(password);
+      passwordHash = bcrypt.hashSync(password, 10);
+    }
+    const target = db.getAdminById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'ادمین یافت نشد' });
+    if (req.params.id === req.admin.id && isSuper === false) {
+      return res.status(400).json({ error: 'امکان حذف دسترسی سوپر از خود وجود ندارد' });
+    }
+    const updated = db.updateAdmin(req.params.id, {
+      name,
+      passwordHash,
+      isSuper,
+    });
+    res.json(sanitizeAdmin(updated));
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در بروزرسانی ادمین' });
+  }
+});
+
+app.delete('/api/admins/:id', requireSuperAdmin, (req, res) => {
+  try {
+    if (req.params.id === req.admin.id) return res.status(400).json({ error: 'حذف اکانت خود امکان‌پذیر نیست' });
+    const target = db.getAdminById(req.params.id);
+    if (!target) return res.json({ ok: true });
+    if (target.isSuper && db.countSuperAdminsExcluding(req.params.id) === 0) {
+      return res.status(400).json({ error: 'نمی‌توان آخرین سوپر ادمین را حذف کرد' });
+    }
+    db.deleteAdmin(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در حذف ادمین' });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Health
 
@@ -67,12 +231,20 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/students', (_req, res) => res.json(db.listStudents()));
 
 app.post('/api/students', (req, res) => handle(res, () => {
-  const { name, email, groupId } = req.body || {};
-  return db.addStudent({ name, email, groupId });
+  const { name, email, groupId, phone } = req.body || {};
+  return db.addStudent({ name, email, groupId, phone });
 }));
 
 app.get('/api/students/:id', (req, res) => {
   const student = db.getStudent(req.params.id);
+  if (!student) return res.status(404).json({ error: 'یافت نشد' });
+  res.json(student);
+});
+
+app.get('/api/students/by-phone', (req, res) => {
+  const { phone } = req.query || {};
+  if (!phone) return res.status(400).json({ error: 'phone الزامی است' });
+  const student = db.getStudentByPhone(phone);
   if (!student) return res.status(404).json({ error: 'یافت نشد' });
   res.json(student);
 });
@@ -93,6 +265,18 @@ app.post('/api/students/:id/verify/confirm', (req, res) => handle(res, () => {
 
 app.post('/api/students/:id/verify/manual', (req, res) => handle(res, () => {
   db.markStudentVerified(req.params.id);
+  return { ok: true };
+}));
+
+app.post('/api/students/:id/phone/verify/start', (req, res) => handle(res, () => db.startPhoneVerification(req.params.id)));
+
+app.post('/api/students/:id/phone/verify/confirm', (req, res) => handle(res, () => {
+  const ok = db.verifyStudentPhone(req.params.id, req.body?.code);
+  return { ok };
+}));
+
+app.post('/api/students/:id/phone/verify/manual', (req, res) => handle(res, () => {
+  db.markStudentPhoneVerified(req.params.id);
   return { ok: true };
 }));
 
