@@ -13,6 +13,7 @@
       window.API_BASE = origin + '/api';
     })();
   </script>
+  <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
   <script src="js/api.js"></script>
 
 </head>
@@ -25,7 +26,21 @@
       </nav>
     </header>
 
-    <div class="layout">
+    <section class="card login-card" id="coachLoginCard">
+      <h2>ورود مربی</h2>
+      <form id="coachLoginForm">
+        <label>ایمیل
+          <input type="email" id="coachLoginEmail" required placeholder="coach@example.com" />
+        </label>
+        <label>رمز عبور
+          <input type="password" id="coachLoginPassword" required placeholder="حداقل ۶ کاراکتر" />
+        </label>
+        <button type="submit">ورود</button>
+      </form>
+      <div id="coachLoginMsg" class="muted"></div>
+    </section>
+
+    <div class="layout" id="coachAppArea" style="display:none">
       <aside class="sidebar">
         <button class="side-link active" data-panel="programs">برنامه‌ها</button>
         <button class="side-link" data-panel="groups">گروه‌ها</button>
@@ -37,6 +52,7 @@
         <button class="side-link" data-panel="coach-goals">اهداف شاگردان</button>
         <div class="side-footer">
           <button id="seedDemo" class="side-secondary">داده‌ی نمونه</button>
+          <button id="coachLogout" class="side-secondary danger">خروج</button>
         </div>
       </aside>
 
@@ -98,23 +114,38 @@
 
         <section class="panel" data-panel="students" hidden>
           <div class="card">
-            <h2>افزودن شاگرد به گروه</h2>
-            <form id="studentForm">
-              <label>نام شاگرد
-                <input type="text" id="studentName" required />
-              </label>
-              <label>ایمیل شاگرد
-                <input type="email" id="studentEmail" placeholder="مثلاً ali@example.com" />
-              </label>
-              <label>شماره موبایل
-                <input type="tel" id="studentPhone" placeholder="مثلاً 09..." />
-              </label>
-              <label>انتخاب گروه
-                <select id="studentGroup" required></select>
-              </label>
-              <button type="submit">افزودن شاگرد</button>
-            </form>
-            <div class="list" id="studentList"></div>
+            <h2>دانشجوها</h2>
+            <details>
+              <summary>افزودن شاگرد توسط مربی</summary>
+              <form id="studentForm" class="form-grid">
+                <label>نام شاگرد
+                  <input type="text" id="studentName" required />
+                </label>
+                <label>ایمیل شاگرد (اختیاری)
+                  <input type="email" id="studentEmail" placeholder="مثلاً ali@example.com" />
+                </label>
+                <label>شماره موبایل (اختیاری)
+                  <input type="tel" id="studentPhone" placeholder="مثلاً 09..." />
+                </label>
+                <label>انتخاب گروه
+                  <select id="studentGroup" required></select>
+                </label>
+                <label>رمز اولیه (اختیاری)
+                  <input type="password" id="studentPassword" placeholder="اگر خالی بگذارید، شاگرد بعداً رمز تعیین می‌کند" />
+                </label>
+                <button type="submit">افزودن شاگرد</button>
+              </form>
+            </details>
+
+            <details open style="margin-top:16px">
+              <summary>درخواست‌های در انتظار تایید</summary>
+              <div class="list" id="pendingStudentList"></div>
+            </details>
+
+            <details open style="margin-top:16px">
+              <summary>فهرست شاگردهای تایید شده</summary>
+              <div class="list" id="studentList"></div>
+            </details>
           </div>
         </section>
 
