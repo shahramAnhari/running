@@ -1,118 +1,17 @@
 <!doctype html>
-<html lang="fa" dir="rtl">
+<html lang="fa">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>پنل مدیریت ادمین‌ها</title>
+  <title>در حال انتقال…</title>
+  <meta http-equiv="refresh" content="0; url=/app/admin.html" />
   <script>
-    (function () {
-      const origin = (window.location && window.location.origin)
-        ? window.location.origin.replace(/\/$/, '')
-        : '';
-      window.API_BASE = origin + '/api';
-    })();
+    window.location.replace('/app/admin.html');
   </script>
-  <script>
-    (function () {
-      const param = 'kvn-push-debug';
-      const url = new URL(window.location.href);
-      if (!url.searchParams.has(param)) return;
-      url.searchParams.delete(param);
-      window.history.replaceState({}, document.title, url.toString());
-    })();
-  </script>
-  <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
-  <script src="js/api.js"></script>
-  <script src="js/admin.js" defer></script>
-  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="container">
-    <header class="topbar">
-      <h1>مدیریت ادمین‌ها</h1>
-      <nav>
-        <a href="index.html">بازگشت</a>
-      </nav>
-    </header>
-
-    <main class="content">
-      <section class="card" id="bootstrapCard" hidden>
-        <h2>ایجاد اولین ادمین</h2>
-        <p>اگر برای اولین بار وارد می‌شوید، اطلاعات ادمین اصلی را ثبت کنید.</p>
-        <form id="bootstrapForm" class="form-grid">
-          <label>
-            ایمیل
-            <input type="email" name="email" required autocomplete="username" />
-          </label>
-          <label>
-            نام (اختیاری)
-            <input type="text" name="name" autocomplete="name" />
-          </label>
-          <label>
-            پسورد
-            <input type="password" name="password" required autocomplete="new-password" />
-          </label>
-          <button type="submit">ساخت ادمین</button>
-        </form>
-        <p class="muted" style="margin-top:8px">پسورد باید حداقل ۶ کاراکتر باشد. بعد از ساخت موفق، به صورت خودکار لاگین می‌شوید.</p>
-        <div id="bootstrapMsg" class="muted"></div>
-      </section>
-
-      <section class="card" id="loginCard" hidden>
-        <h2>ورود ادمین</h2>
-        <form id="loginForm" class="form-grid">
-          <label>
-            ایمیل
-            <input type="email" name="email" required autocomplete="username" />
-          </label>
-          <label>
-            پسورد
-            <input type="password" name="password" required autocomplete="current-password" />
-          </label>
-          <button type="submit">ورود</button>
-        </form>
-        <div class="muted" style="margin-top:8px">
-          ادمین ندارید؟ ابتدا فرم بالا را تکمیل کنید. اگر مطمئن هستید ادمینی وجود دارد ولی رمز را فراموش کرده‌اید، از سوپر ادمین بخواهید رمز را ریست کند.
-        </div>
-        <div id="loginMsg" class="muted"></div>
-      </section>
-
-      <section class="card" id="panelCard" hidden>
-        <div class="row-between" style="align-items:flex-start">
-          <div>
-            <h2>لیست ادمین‌ها</h2>
-            <div id="currentAdmin" class="muted"></div>
-          </div>
-          <button id="logoutBtn" class="btn-sm danger">خروج</button>
-        </div>
-
-        <div class="card" style="margin-top:16px">
-          <h3>افزودن ادمین جدید</h3>
-          <form id="createAdminForm" class="form-grid">
-            <label>
-              ایمیل
-              <input type="email" name="email" required />
-            </label>
-            <label>
-              نام (اختیاری)
-              <input type="text" name="name" />
-            </label>
-            <label>
-              پسورد اولیه
-              <input type="password" name="password" required />
-            </label>
-            <label class="checkbox">
-              <input type="checkbox" name="isSuper" />
-              <span>دسترسی سوپر ادمین</span>
-            </label>
-            <button type="submit">ایجاد</button>
-          </form>
-          <div id="createAdminMsg" class="muted"></div>
-        </div>
-
-        <div id="adminsList" class="list" style="margin-top:16px"></div>
-      </section>
-    </main>
-  </div>
+  <p style="font-family: sans-serif; text-align: center; margin-top: 20vh;">
+    در حال انتقال به <a href="/app/admin.html">/app/admin.html</a> …
+  </p>
 </body>
 </html>

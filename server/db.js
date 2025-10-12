@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const bcrypt = require('bcryptjs');
 
 const dbPath = path.join(__dirname, 'db.sqlite');
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -42,7 +43,7 @@ function ensureSchema() {
     CREATE TABLE IF NOT EXISTS students (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE,
       verified_at TEXT,
       profile_json TEXT,
       group_id TEXT,
@@ -156,6 +157,15 @@ function ensureSchema() {
       is_super INTEGER DEFAULT 0,
       created_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS coaches (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      password_hash TEXT NOT NULL,
+      created_at TEXT,
+      last_login_at TEXT
+    );
   `);
 
   ensureColumn('students', 'group_id', 'TEXT');
@@ -163,6 +173,10 @@ function ensureSchema() {
   ensureColumn('students', 'phone_verified_at', 'TEXT');
   ensureColumn('students', 'phone_verification_code', 'TEXT');
   ensureColumn('students', 'phone_verification_expires_at', 'TEXT');
+  ensureColumn('students', 'status', 'TEXT');
+  ensureColumn('students', 'password_hash', 'TEXT');
+  ensureColumn('students', 'created_at', 'TEXT');
+  ensureColumn('students', 'last_login_at', 'TEXT');
   ensureColumn('students', 'verification_code', 'TEXT');
   ensureColumn('students', 'verification_expires_at', 'TEXT');
   ensureColumn('students', 'profile_json', 'TEXT');
@@ -171,9 +185,12 @@ function ensureSchema() {
   ensureColumn('payments', 'month_jalali', 'TEXT');
 
   ensureColumn('logs', 'hydration', 'REAL');
+
+  ensureColumn('coaches', 'last_login_at', 'TEXT');
 }
 
 ensureSchema();
+db.prepare(`UPDATE students SET status = 'approved' WHERE status IS NULL`).run();
 
 function parseJSON(input, fallback) {
   if (!input) return fallback;
@@ -205,6 +222,21 @@ function normalizePhone(phone) {
   if (!phone) return null;
   const digits = String(phone).replace(/\D+/g, '');
   return digits || null;
+}
+
+function hashPassword(password) {
+  if (!password) throw new Error('پسورد الزامی است');
+  if (password.length < 6) throw new Error('پسورد باید حداقل ۶ کاراکتر باشد');
+  return bcrypt.hashSync(password, 10);
+}
+
+function checkPassword(password, hash) {
+  if (!hash || !password) return false;
+  try {
+    return bcrypt.compareSync(password, hash);
+  } catch {
+    return false;
+  }
 }
 
 // Admins --------------------------------------------------------------------
@@ -275,6 +307,84 @@ function countSuperAdminsExcluding(id) {
   return cnt;
 }
 
+// Coaches -------------------------------------------------------------------
+
+function rowToCoach(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name || '',
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at || null,
+    passwordHash: row.password_hash,
+  };
+}
+
+function listCoaches() {
+  const rows = db.prepare('SELECT id, email, name, created_at, last_login_at FROM coaches ORDER BY created_at ASC').all();
+  return rows.map(row => ({
+    id: row.id,
+    email: row.email,
+    name: row.name || '',
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at || null,
+  }));
+}
+
+function getCoachByEmail(email) {
+  if (!email) return null;
+  const row = db.prepare('SELECT * FROM coaches WHERE LOWER(email) = LOWER(?)').get(String(email));
+  return rowToCoach(row);
+}
+
+function getCoachById(id) {
+  if (!id) return null;
+  const row = db.prepare('SELECT * FROM coaches WHERE id = ?').get(id);
+  return rowToCoach(row);
+}
+
+function createCoach({ email, name, passwordHash }) {
+  if (!email || !passwordHash) throw new Error('Email and passwordHash required');
+  const id = genId('coach');
+  const existing = db.prepare('SELECT id FROM coaches WHERE LOWER(email) = LOWER(?)').get(String(email));
+  if (existing) throw new Error('این ایمیل قبلاً برای مربی دیگری ثبت شده است');
+  db.prepare('INSERT INTO coaches(id, email, name, password_hash, created_at) VALUES(?,?,?,?,?)')
+    .run(id, String(email).toLowerCase(), name || '', passwordHash, now());
+  return getCoachById(id);
+}
+
+function updateCoach(id, { name, email, passwordHash }) {
+  const current = db.prepare('SELECT * FROM coaches WHERE id = ?').get(id);
+  if (!current) throw new Error('Coach not found');
+
+  const nextName = name !== undefined ? name : current.name;
+  const nextEmail = email !== undefined ? (email ? String(email).toLowerCase() : null) : current.email;
+  const nextHash = passwordHash !== undefined ? passwordHash : current.password_hash;
+
+  if (!nextEmail) throw new Error('Email cannot be empty');
+  if (nextEmail !== current.email) {
+    const existing = db.prepare('SELECT id FROM coaches WHERE LOWER(email) = ? AND id <> ?').get(nextEmail, id);
+    if (existing) throw new Error('این ایمیل قبلاً برای مربی دیگری ثبت شده است');
+  }
+  db.prepare('UPDATE coaches SET name = ?, email = ?, password_hash = ? WHERE id = ?')
+    .run(nextName || '', nextEmail, nextHash, id);
+  return getCoachById(id);
+}
+
+function deleteCoach(id) {
+  db.prepare('DELETE FROM coaches WHERE id = ?').run(id);
+}
+
+function authenticateCoach({ email, password }) {
+  if (!email || !password) return null;
+  const row = db.prepare('SELECT * FROM coaches WHERE LOWER(email) = LOWER(?)').get(String(email));
+  if (!row) return null;
+  if (!checkPassword(password, row.password_hash)) return null;
+  db.prepare('UPDATE coaches SET last_login_at = ? WHERE id = ?').run(now(), row.id);
+  return getCoachById(row.id);
+}
+
 // Students -------------------------------------------------------------------
 
 function rowToStudent(row) {
@@ -286,6 +396,9 @@ function rowToStudent(row) {
     groupId: row.group_id || null,
     phone: row.phone || null,
     phoneVerifiedAt: row.phone_verified_at || null,
+    status: row.status || 'pending',
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at,
     profile: parseJSON(row.profile_json, {}),
   };
 }
@@ -313,8 +426,8 @@ function getStudentByPhone(phone) {
   return row ? rowToStudent(row) : null;
 }
 
-function addStudent({ name, email, groupId, phone }) {
-  if (!name) throw new Error('نام الزامی است');
+function addStudent({ name, email, groupId, phone, password, status = 'approved' }) {
+  const displayName = name && String(name).trim() ? String(name).trim() : 'کاربر';
   const emailNorm = email ? String(email).trim() : null;
   const phoneNorm = normalizePhone(phone);
   if (!emailNorm && !phoneNorm) throw new Error('ایمیل یا موبایل الزامی است');
@@ -329,10 +442,24 @@ function addStudent({ name, email, groupId, phone }) {
   }
 
   const id = genId('std');
+  const passwordHash = password ? hashPassword(password) : null;
   db.prepare(`INSERT INTO students(
-      id, name, email, verified_at, profile_json, group_id, phone, phone_verified_at
-    ) VALUES(?,?,?,?,?,?,?,?)`)
-    .run(id, name, emailNorm, null, JSON.stringify({}), groupId || null, phoneNorm, null);
+      id, name, email, verified_at, profile_json, group_id, phone, phone_verified_at,
+      status, password_hash, created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      id,
+      displayName,
+      emailNorm,
+      emailNorm ? now() : null,
+      JSON.stringify({}),
+      groupId || null,
+      phoneNorm,
+      phoneNorm ? now() : null,
+      status || 'approved',
+      passwordHash,
+      now()
+    );
   return getStudent(id);
 }
 
@@ -369,6 +496,124 @@ function updateStudent(id, { name, email, groupId, phone }) {
       phoneNorm ?? null,
       id
     );
+  return getStudent(id);
+}
+
+function createPendingStudent({ name, email, phone }) {
+  const displayName = name && String(name).trim() ? String(name).trim() : 'کاربر جدید';
+  const emailNorm = email ? String(email).trim().toLowerCase() : null;
+  const phoneNorm = normalizePhone(phone);
+  if (!emailNorm && !phoneNorm) throw new Error('ایمیل یا موبایل الزامی است');
+
+  const code = String(Math.floor(100000 + Math.random() * 900000)).padStart(6, '0');
+  const expiresAt = String(Date.now() + 10 * 60 * 1000);
+
+  let candidate = null;
+  if (emailNorm) {
+    candidate = db.prepare('SELECT * FROM students WHERE LOWER(email) = ?').get(emailNorm);
+  }
+  if (!candidate && phoneNorm) {
+    candidate = db.prepare('SELECT * FROM students WHERE phone = ?').get(phoneNorm);
+  }
+
+  if (candidate) {
+    if (candidate.status === 'approved') throw new Error('این حساب قبلاً تایید شده است. لطفاً وارد شوید.');
+    db.prepare(`UPDATE students SET
+      name = ?,
+      email = ?,
+      phone = ?,
+      status = 'pending',
+      verification_code = ?,
+      verification_expires_at = ?,
+      phone_verification_code = ?,
+      phone_verification_expires_at = ?,
+      password_hash = password_hash
+      WHERE id = ?`)
+      .run(
+        displayName || candidate.name,
+        emailNorm || candidate.email,
+        phoneNorm || candidate.phone,
+        emailNorm ? code : candidate.verification_code,
+        emailNorm ? expiresAt : candidate.verification_expires_at,
+        phoneNorm ? code : candidate.phone_verification_code,
+        phoneNorm ? expiresAt : candidate.phone_verification_expires_at,
+        candidate.id
+      );
+    return { student: getStudent(candidate.id), code, expiresAt: Number(expiresAt), via: emailNorm ? 'email' : 'phone' };
+  }
+
+  const id = genId('std');
+  db.prepare(`INSERT INTO students(
+      id, name, email, verified_at, profile_json, group_id,
+      verification_code, verification_expires_at,
+      phone, phone_verified_at, phone_verification_code, phone_verification_expires_at,
+      status, password_hash, created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      id,
+      displayName,
+      emailNorm,
+      null,
+      JSON.stringify({}),
+      null,
+      emailNorm ? code : null,
+      emailNorm ? expiresAt : null,
+      phoneNorm,
+      null,
+      phoneNorm ? code : null,
+      phoneNorm ? expiresAt : null,
+      'pending',
+      null,
+      now()
+    );
+  return { student: getStudent(id), code, expiresAt: Number(expiresAt), via: emailNorm ? 'email' : 'phone' };
+}
+
+function confirmStudentSignupByEmail({ email, code, password }) {
+  if (!email || !code) throw new Error('ایمیل و کد الزامی است');
+  const row = db.prepare('SELECT * FROM students WHERE LOWER(email) = ?').get(String(email).trim().toLowerCase());
+  if (!row) throw new Error('شاگرد یافت نشد');
+  if (!row.verification_code) throw new Error('کدی برای این شاگرد ثبت نشده است');
+  const expires = parseInt(row.verification_expires_at || '0', 10);
+  if (row.verification_code !== String(code).trim()) throw new Error('کد نامعتبر است');
+  if (Date.now() > expires) throw new Error('کد منقضی شده است');
+  const hash = hashPassword(password);
+  db.prepare(`UPDATE students SET
+      verified_at = ?,
+      verification_code = NULL,
+      verification_expires_at = NULL,
+      password_hash = ?,
+      status = COALESCE(status, 'pending')
+    WHERE id = ?`)
+    .run(now(), hash, row.id);
+  return getStudent(row.id);
+}
+
+function authenticateStudent({ email, password }) {
+  if (!email || !password) throw new Error('ایمیل/رمز الزامی است');
+  const row = db.prepare('SELECT * FROM students WHERE LOWER(email) = ?').get(String(email).trim().toLowerCase());
+  if (!row) throw new Error('شاگرد یافت نشد');
+  if (!row.password_hash) throw new Error('برای این حساب رمزی تعیین نشده است');
+  if (!checkPassword(password, row.password_hash)) throw new Error('رمز نادرست است');
+  db.prepare('UPDATE students SET last_login_at = ? WHERE id = ?').run(now(), row.id);
+  return getStudent(row.id);
+}
+
+function setStudentPassword(id, password) {
+  const hash = hashPassword(password);
+  db.prepare('UPDATE students SET password_hash = ? WHERE id = ?').run(hash, id);
+  return getStudent(id);
+}
+
+function listPendingStudents() {
+  const rows = db.prepare('SELECT * FROM students WHERE status = "pending" ORDER BY created_at DESC').all();
+  return rows.map(rowToStudent);
+}
+
+function setStudentStatus(id, status) {
+  const allowed = new Set(['pending', 'approved', 'rejected']);
+  if (!allowed.has(status)) throw new Error('وضعیت نامعتبر است');
+  db.prepare('UPDATE students SET status = ? WHERE id = ?').run(status, id);
   return getStudent(id);
 }
 
@@ -994,6 +1239,12 @@ module.exports = {
   deleteStudent,
   markStudentVerified,
   markStudentPhoneVerified,
+  createPendingStudent,
+  confirmStudentSignupByEmail,
+  authenticateStudent,
+  setStudentPassword,
+  listPendingStudents,
+  setStudentStatus,
   startEmailVerification,
   verifyStudentEmail,
   startPhoneVerification,
@@ -1056,6 +1307,13 @@ module.exports = {
   updateAdmin,
   deleteAdmin,
   countSuperAdminsExcluding,
+  listCoaches,
+  createCoach,
+  getCoachByEmail,
+  getCoachById,
+  updateCoach,
+  deleteCoach,
+  authenticateCoach,
 
   defaultWeek,
   seedDemo,

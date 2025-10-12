@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { sendMail } = require('./mailer');
 const db = require('./db');
 
 const app = express();
@@ -39,6 +40,8 @@ const paymentUpload = multer({ storage: makeStorage('payments') });
 
 const JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'change-this-secret';
 const TOKEN_EXPIRY = process.env.ADMIN_JWT_EXPIRES_IN || '4h';
+const COACH_JWT_SECRET = process.env.COACH_JWT_SECRET || 'change-this-coach-secret';
+const COACH_TOKEN_EXPIRY = process.env.COACH_JWT_EXPIRES_IN || '8h';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,6 +72,17 @@ function sanitizeAdmin(admin) {
     name: admin.name || '',
     isSuper: !!admin.isSuper,
     createdAt: admin.createdAt,
+  };
+}
+
+function sanitizeCoach(coach) {
+  if (!coach) return null;
+  return {
+    id: coach.id,
+    email: coach.email,
+    name: coach.name || '',
+    createdAt: coach.createdAt,
+    lastLoginAt: coach.lastLoginAt,
   };
 }
 
@@ -108,6 +122,29 @@ function signToken(admin) {
     JWT_SECRET,
     { expiresIn: TOKEN_EXPIRY }
   );
+}
+
+function signCoachToken(coach) {
+  return jwt.sign(
+    { sub: coach.id, email: coach.email },
+    COACH_JWT_SECRET,
+    { expiresIn: COACH_TOKEN_EXPIRY }
+  );
+}
+
+function requireCoach(req, res, next) {
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'توکن ارسال نشده' });
+  let payload;
+  try {
+    payload = jwt.verify(token, COACH_JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'توکن نامعتبر است' });
+  }
+  const coach = db.getCoachById(payload.sub);
+  if (!coach) return res.status(401).json({ error: 'مربی یافت نشد' });
+  req.coach = sanitizeCoach(coach);
+  next();
 }
 
 function assertPasswordStrong(password) {
@@ -221,6 +258,137 @@ app.delete('/api/admins/:id', requireSuperAdmin, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Coach Management (admin-facing)
+
+app.get('/api/coaches', requireAdmin, (_req, res) => {
+  res.json(db.listCoaches().map(sanitizeCoach));
+});
+
+app.post('/api/coaches', requireAdmin, (req, res) => {
+  try {
+    const { email, name, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل و پسورد الزامی است' });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'ایمیل نامعتبر است' });
+    assertPasswordStrong(password);
+    const coach = db.createCoach({
+      email,
+      name,
+      passwordHash: bcrypt.hashSync(password, 10),
+    });
+    res.json(sanitizeCoach(coach));
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در ایجاد مربی' });
+  }
+});
+
+app.put('/api/coaches/:id', requireAdmin, (req, res) => {
+  try {
+    const { email, name, password } = req.body || {};
+    let passwordHash;
+    if (password !== undefined) {
+      assertPasswordStrong(password);
+      passwordHash = bcrypt.hashSync(password, 10);
+    }
+    if (email !== undefined && email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return res.status(400).json({ error: 'ایمیل نامعتبر است' });
+    }
+    const updated = db.updateCoach(req.params.id, {
+      email,
+      name,
+      passwordHash,
+    });
+    res.json(sanitizeCoach(updated));
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در بروزرسانی مربی' });
+  }
+});
+
+app.delete('/api/coaches/:id', requireAdmin, (req, res) => {
+  try {
+    db.deleteCoach(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در حذف مربی' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Coach Auth (coach-facing)
+
+app.post('/api/coach/login', (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل/پسورد الزامی است' });
+    const coach = db.authenticateCoach({ email, password });
+    if (!coach) return res.status(401).json({ error: 'اطلاعات ورود نادرست است' });
+    const token = signCoachToken(coach);
+    res.json({ token, coach: sanitizeCoach(coach) });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطای ورود مربی' });
+  }
+});
+
+app.get('/api/coach/me', requireCoach, (req, res) => {
+  res.json({ coach: req.coach });
+});
+
+// ---------------------------------------------------------------------------
+// Student Auth (signup/login)
+
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { name, email, phone } = req.body || {};
+    const result = db.createPendingStudent({ name, email, phone });
+
+    if (result.via === 'email' && email) {
+      try {
+        await sendMail({
+          to: email,
+          subject: 'کد تایید شوتارَن',
+          text: `کد تایید شما: ${result.code}`,
+          html: `<p>کد تایید شما:</p><h2>${result.code}</h2>`,
+        });
+      } catch (mailErr) {
+        console.error('Email send failed:', mailErr);
+      }
+    }
+
+    res.json({
+      ok: true,
+      student: result.student,
+      expiresAt: result.expiresAt,
+      via: result.via,
+      // در حالت توسعه همچنان کد را برمی‌گردانیم تا فرانت بتواند نمایش دهد
+      code: process.env.NODE_ENV === 'production' ? undefined : result.code,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در ثبت‌نام' });
+  }
+});
+
+app.post('/api/auth/verify', (req, res) => {
+  try {
+    const { email, code, password } = req.body || {};
+    if (!email || !code || !password) return res.status(400).json({ error: 'ایمیل، کد و پسورد الزامی است' });
+    const student = db.confirmStudentSignupByEmail({ email, code, password });
+    res.json({ ok: true, student });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در تایید حساب' });
+  }
+});
+
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل/رمز الزامی است' });
+    const student = db.authenticateStudent({ email, password });
+    res.json({ ok: true, student });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در ورود' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Health
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
@@ -229,6 +397,8 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 // Students
 
 app.get('/api/students', (_req, res) => res.json(db.listStudents()));
+
+app.get('/api/students/pending', (_req, res) => res.json(db.listPendingStudents()));
 
 app.post('/api/students', (req, res) => handle(res, () => {
   const { name, email, groupId, phone } = req.body || {};
@@ -254,6 +424,14 @@ app.put('/api/students/:id', (req, res) => handle(res, () => db.updateStudent(re
 app.delete('/api/students/:id', (req, res) => handle(res, () => {
   db.deleteStudent(req.params.id);
   return { ok: true };
+}));
+
+app.post('/api/students/:id/approve', (req, res) => handle(res, () => {
+  return db.setStudentStatus(req.params.id, 'approved');
+}));
+
+app.post('/api/students/:id/reject', (req, res) => handle(res, () => {
+  return db.setStudentStatus(req.params.id, 'rejected');
 }));
 
 app.post('/api/students/:id/verify/start', (req, res) => handle(res, () => db.startEmailVerification(req.params.id)));

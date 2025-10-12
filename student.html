@@ -1,490 +1,17 @@
 <!doctype html>
-<html lang="fa" dir="rtl">
+<html lang="fa">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>پنل شاگرد</title>
+  <title>در حال انتقال…</title>
+  <meta http-equiv="refresh" content="0; url=/app/student.html" />
   <script>
-    (function () {
-      const origin = (window.location && window.location.origin)
-        ? window.location.origin.replace(/\/$/, '')
-        : '';
-      window.API_BASE = origin + '/api';
-    })();
+    window.location.replace('/app/student.html');
   </script>
-  <script>
-    (function () {
-      const param = 'kvn-push-debug';
-      const url = new URL(window.location.href);
-      if (!url.searchParams.has(param)) return;
-      url.searchParams.delete(param);
-      window.history.replaceState({}, document.title, url.toString());
-    })();
-  </script>
-  <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
-  <script src="js/api.js"></script>
-
-  <link rel="stylesheet" href="styles.css" />
-
 </head>
 <body>
-  <div class="container">
-    <header class="topbar">
-      <div class="header-user">
-        <img id="studentAvatarHdr" class="avatar-sm" alt="" style="display:none" />
-        <h1 id="studentNameHdr">پنل شاگرد</h1>
-      </div>
-      <nav>
-        <a href="index.html">بازگشت</a>
-      </nav>
-    </header>
-
-    <section class="card login-card">
-      <h2>ورود</h2>
-      <form id="loginForm">
-        <label>ایمیل (اختیاری)
-          <input type="email" id="loginEmail" placeholder="example@mail.com" />
-        </label>
-        <label>شماره موبایل (اختیاری)
-          <input type="tel" id="loginPhone" placeholder="مثلاً 09..." />
-        </label>
-        <label style="display:flex; gap:8px; align-items:center;">
-          <input type="checkbox" id="rememberMe" checked />
-          <span>اطلاعات ورود را به خاطر بسپار</span>
-        </label>
-        <button type="submit">مشاهده برنامه‌ها</button>
-      </form>
-      <div class="muted" style="margin-top:8px">برای ورود، یکی از ایمیل یا موبایل را وارد کنید. در اولین ورود، کد تایید برای شما نمایش داده می‌شود.</div>
-      <div id="loginMsg" class="muted"></div>
-      <div id="verifyArea" class="verify-area" style="display:none">
-        <div class="muted" id="verifyInstruction">ایمیل شما تایید نشده است. کد تایید را وارد کنید.</div>
-        <div class="row">
-          <button type="button" id="sendCode">ارسال کد</button>
-          <input type="text" id="verifyCode" inputmode="numeric" placeholder="کد ۶ رقمی" style="max-width:160px" />
-          <button type="button" id="confirmCode">تایید</button>
-        </div>
-        <div id="verifyMsg" class="muted"></div>
-      </div>
-    </section>
-
-    <div id="appArea" class="layout" style="display:none">
-      <aside class="sidebar">
-        <button class="side-link active" data-panel="programs">برنامه‌ها</button>
-        <button class="side-link" data-panel="payments">پرداخت‌ها</button>
-        <button class="side-link" data-panel="goals">هدف‌ها</button>
-        <button class="side-link" data-panel="archive">آرشیو</button>
-        <button class="side-link" data-panel="hr">محاسبه ضربان</button>
-        <button class="side-link" data-panel="pace">محاسبه پیس</button>
-        <button class="side-link" data-panel="log">دفترچه تمرین</button>
-        <button class="side-link" data-panel="profile">پروفایل</button>
-        <div class="side-footer">
-          <button id="logoutBtn" class="side-secondary danger">خروج</button>
-        </div>
-      </aside>
-      <main class="content">
-        <section class="panel" data-panel="programs">
-          <div class="card">
-            <h2>برنامه‌های شما</h2>
-            <div id="studentPrograms" class="list"></div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="payments" hidden>
-          <div class="card">
-            <h2>پرداخت‌های ماهانه</h2>
-            <form id="paymentForm">
-              <label>ماه پرداخت (شمسی)
-                <div class="j-month" id="jMonth">
-                  <input type="text" id="paymentMonthJalali" placeholder="مثلاً 1403 مهر" readonly />
-                  <input type="hidden" id="paymentMonthJalaliHidden" />
-                  <button type="button" id="jMonthToggle">انتخاب</button>
-                  <div class="j-popup" id="jMonthPopup" hidden>
-                    <div class="j-header">
-                      <button type="button" id="jPrevYear">«</button>
-                      <span id="jYearLabel"></span>
-                      <button type="button" id="jNextYear">»</button>
-                    </div>
-                    <div class="j-grid" id="jMonthsGrid"></div>
-                  </div>
-                </div>
-              </label>
-              <label>توضیح (اختیاری)
-                <input type="text" id="paymentNote" placeholder="مثلاً رسید بانک" />
-              </label>
-              <label>تصویر رسید
-                <input type="file" id="paymentImage" accept="image/*" required />
-              </label>
-              <button type="submit">آپلود</button>
-            </form>
-            <div id="paymentList" class="list"></div>
-            <div class="muted" style="margin-top:8px">نکته: تصاویر در مرورگر شما ذخیره می‌شوند (نمونه آزمایشی).</div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="goals" hidden>
-          <div class="card">
-            <h2>هدف‌ها</h2>
-            <form id="goalForm">
-              <label>عنوان هدف
-                <input type="text" id="goalTitle" placeholder="مثلاً کاهش ۵ کیلو" required />
-              </label>
-              <div class="form-grid two">
-                <label>هدف مسافت (کیلومتر)
-                  <input type="number" id="goalDist" step="0.01" min="0" placeholder="مثلاً 10" />
-                </label>
-                <div>
-                  <div class="hint" style="margin-bottom:4px">هدف پیس (دقیقه/کیلومتر)</div>
-                  <div class="time-group">
-                    <label>دقیقه
-                      <input type="number" id="goalPaceM" min="0" max="59" inputmode="numeric" placeholder="05" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>ثانیه
-                      <input type="number" id="goalPaceS" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                  </div>
-                </div>
-                <div>
-                  <div class="hint" style="margin-bottom:4px">هدف زمان (ساعت:دقیقه:ثانیه)</div>
-                  <div class="time-group">
-                    <label>ساعت
-                      <input type="number" id="goalH" min="0" inputmode="numeric" placeholder="00" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>دقیقه
-                      <input type="number" id="goalM" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>ثانیه
-                      <input type="number" id="goalS" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <button type="submit">افزودن هدف</button>
-            </form>
-            <div id="goalList" class="list"></div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="archive" hidden>
-          <div class="card">
-            <h2>آرشیو برنامه‌ها (ماه/هفته)</h2>
-            <div id="archiveList" class="list"></div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="hr" hidden>
-          <div class="card">
-            <h2>ماشین‌حساب ضربان قلب</h2>
-            <h3 style="margin-top:0">ساده (بر اساس سن و جنسیت)</h3>
-            <form id="hrQuickForm">
-              <div class="row">
-                <label style="flex:1">سن
-                  <input type="number" id="hrQuickAge" inputmode="numeric" min="1" placeholder="مثلاً 30" required />
-                </label>
-                <label style="flex:1">جنسیت
-                  <select id="hrSex">
-                    <option value="male">مذکر</option>
-                    <option value="female">مونث</option>
-                  </select>
-                </label>
-                <label style="flex:1">ضربان استراحت (اختیاری)
-                  <input type="number" id="hrRest" inputmode="numeric" min="20" max="120" placeholder="مثلاً 60" />
-                </label>
-              </div>
-              <button type="submit">محاسبه</button>
-            </form>
-            <div id="hrQuickResult" class="item" style="margin-top:10px"></div>
-
-            <h3>پیشرفته (اندازه‌گیری دستی)</h3>
-            <form id="hrForm">
-              <div class="row">
-                <label style="flex:1">تعداد ضربان شمرده‌شده
-                  <input type="number" id="hrBeats" inputmode="numeric" min="1" placeholder="مثلاً 22" />
-                </label>
-                <label style="flex:1">مدت شمردن (ثانیه)
-                  <select id="hrSeconds">
-                    <option value="6">6 ثانیه ×10</option>
-                    <option value="10">10 ثانیه ×6</option>
-                    <option value="15" selected>15 ثانیه ×4</option>
-                    <option value="30">30 ثانیه ×2</option>
-                    <option value="60">60 ثانیه</option>
-                  </select>
-                </label>
-                <label style="flex:1">سن (اختیاری)
-                  <input type="number" id="hrAge" inputmode="numeric" min="1" placeholder="برای برآورد % از حداکثر" />
-                </label>
-              </div>
-              <button type="submit">محاسبه</button>
-            </form>
-            <div id="hrResult" class="item" style="margin-top:10px"></div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="pace" hidden>
-          <div class="card">
-            <h2>ماشین‌حساب پیس/سرعت دویدن</h2>
-            <form id="paceForm">
-              <div class="row">
-                <label style="flex:1">مسافت (کیلومتر)
-                  <input type="number" id="paceDistance" inputmode="decimal" step="0.01" min="0.01" placeholder="مثلاً 5" required />
-                </label>
-              </div>
-              <div class="row">
-                <label style="max-width:140px">ساعت
-                  <input type="number" id="paceH" inputmode="numeric" min="0" placeholder="0" />
-                </label>
-                <label style="max-width:140px">دقیقه
-                  <input type="number" id="paceM" inputmode="numeric" min="0" max="59" placeholder="25" />
-                </label>
-                <label style="max-width:140px">ثانیه
-                  <input type="number" id="paceS" inputmode="numeric" min="0" max="59" placeholder="00" />
-                </label>
-              </div>
-              <button type="submit">محاسبه</button>
-            </form>
-            <div id="paceResult" class="item" style="margin-top:10px"></div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="log" hidden>
-          <div class="card">
-            <h2>دفترچه تمرین روزانه</h2>
-            <div class="section-subtitle">خلاصه تحلیلی</div>
-            <div class="form-grid two charts-grid" style="margin-bottom:8px;">
-              <div>
-                <div class="hint">مسافت ۳۰ روز اخیر</div>
-                <canvas id="stDistChart" height="60"></canvas>
-              </div>
-              <div>
-                <div class="hint">پیس ۱۰ تمرین اخیر</div>
-                <canvas id="stPaceChart" height="60"></canvas>
-              </div>
-              <div>
-                <div class="hint">HR ۱۰ تمرین اخیر</div>
-                <canvas id="stHRChart" height="60"></canvas>
-              </div>
-              <div>
-                <div class="hint">حال ۱۴ روز اخیر</div>
-                <canvas id="stMoodChart" height="60"></canvas>
-              </div>
-            </div>
-            <form id="logForm">
-              <div class="section-subtitle">انتخاب تمرین</div>
-              <div class="form-grid two">
-                <label>تمرین
-                  <select id="logSession">
-                    <option value="">تمرین آزاد/سایر</option>
-                  </select>
-                </label>
-                <label>روز برنامه
-                  <select id="logDay">
-                    <option value="">—</option>
-                  </select>
-                </label>
-              </div>
-              <div id="logDayPreview" class="preview-box" style="margin-top:6px"></div>
-
-              <div class="section-subtitle">وضعیت امروز</div>
-              <div class="form-grid two">
-                <label>حال عمومی (۱–۵)
-                  <select id="logMood">
-                    <option value="0">—</option>
-                    <option value="1">خیلی بد</option>
-                    <option value="2">بد</option>
-                    <option value="3">معمولی</option>
-                    <option value="4">خوب</option>
-                    <option value="5">عالی</option>
-                  </select>
-                </label>
-                <div>
-                  <div class="hint" style="margin-bottom:6px">حال با ایموجی</div>
-                  <div class="emoji-quick" id="emojiQuick">
-                    <button type="button" class="emoji-btn" data-emoji="😫">😫</button>
-                    <button type="button" class="emoji-btn" data-emoji="😕">😕</button>
-                    <button type="button" class="emoji-btn" data-emoji="😐">😐</button>
-                    <button type="button" class="emoji-btn" data-emoji="🙂">🙂</button>
-                    <button type="button" class="emoji-btn" data-emoji="😄">😄</button>
-                    <button type="button" class="emoji-btn" data-emoji="">پاک کردن</button>
-                  </div>
-                  <input type="hidden" id="logEmoji" />
-                </div>
-                <label>کیفیت خواب (۱–۵)
-                  <select id="logSleepQ">
-                    <option value="0">—</option>
-                    <option value="1">خیلی بد</option>
-                    <option value="2">بد</option>
-                    <option value="3">معمولی</option>
-                    <option value="4">خوب</option>
-                    <option value="5">عالی</option>
-                  </select>
-                </label>
-                <label>ساعت خواب
-                  <input type="number" id="logSleepH" min="0" step="0.5" placeholder="مثلاً 7.5" />
-                </label>
-                <label>تغذیه (۱–۵)
-                  <select id="logNutrition">
-                    <option value="0">—</option>
-                    <option value="1">خیلی بد</option>
-                    <option value="2">بد</option>
-                    <option value="3">معمولی</option>
-                    <option value="4">خوب</option>
-                    <option value="5">عالی</option>
-                  </select>
-                </label>
-                <label>RPE (۱–۱۰)
-                  <input type="number" id="logRPE" min="1" max="10" />
-                </label>
-              </div>
-
-              <div class="section-subtitle">جزئیات دویدن</div>
-              <div class="form-grid two">
-                <label>مسافت (کیلومتر)
-                  <input type="number" id="logDist" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
-                </label>
-                <div>
-                  <div class="hint" style="margin-bottom:4px">زمان</div>
-                  <div class="time-group">
-                    <label>ساعت
-                      <input type="number" id="logH" min="0" inputmode="numeric" placeholder="00" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>دقیقه
-                      <input type="number" id="logM" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>ثانیه
-                      <input type="number" id="logS" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                  </div>
-                </div>
-                <label>میانگین HR
-                  <input type="number" id="logHR" min="20" max="220" inputmode="numeric" placeholder="—" />
-                </label>
-                <div><span id="logPaceHint" class="pill"></span></div>
-              </div>
-
-              <div class="section-subtitle">اطلاعات تکمیلی</div>
-              <div class="form-grid two">
-                <label>محل دویدن
-                  <input type="text" id="logLocation" placeholder="مثلاً پارک ملت، تردمیل..." />
-                </label>
-                <label>کفش
-                  <input type="text" id="logShoe" placeholder="مثلاً Nike Pegasus 39" />
-                </label>
-                <label>همراهان
-                  <input type="text" id="logBuddies" placeholder="مثلاً علی و مهدی" />
-                </label>
-              </div>
-
-              <label>یادداشت
-                <input type="text" id="logNote" placeholder="مثلاً حس زانو، باد مخالف، کفش جدید..." />
-              </label>
-              <div class="row">
-                <button type="submit" id="logSubmit">ثبت</button>
-                <button type="button" id="logCancel" class="btn-sm" style="display:none">انصراف از ویرایش</button>
-              </div>
-              <input type="hidden" id="logEditingId" />
-            </form>
-
-            <div id="logList" class="list" style="margin-top:10px"></div>
-          </div>
-        </section>
-
-        <section class="panel" data-panel="profile" hidden>
-          <div class="card">
-            <h2>پروفایل شاگرد</h2>
-            <form id="profileForm">
-              <div class="form-grid two">
-                <label>نام
-                  <input type="text" id="profName" />
-                </label>
-                <label>جنسیت
-                  <select id="profGender">
-                    <option value="">—</option>
-                    <option value="male">مذکر</option>
-                    <option value="female">مونث</option>
-                  </select>
-                </label>
-                <label>تاریخ تولد (شمسی)
-                  <div class="j-date" id="pJDate">
-                    <input type="text" id="profBirthJalali" placeholder="مثلاً 1375/02/10" readonly />
-                    <input type="hidden" id="profBirthISO" />
-                    <button type="button" id="pJDateToggle">انتخاب</button>
-                    <div class="j-popup" id="pJDatePopup" hidden>
-                      <div class="j-header">
-                        <button type="button" id="pPrev">«</button>
-                        <span id="pYMLabel"></span>
-                        <button type="button" id="pNext">»</button>
-                      </div>
-                      <div class="j-days" id="pDays"></div>
-                    </div>
-                  </div>
-                </label>
-                <label>وزن (کیلوگرم)
-                  <input type="number" id="profWeight" inputmode="decimal" step="0.1" min="0" />
-                </label>
-                <label>قد (سانتی‌متر)
-                  <input type="number" id="profHeight" inputmode="decimal" step="0.5" min="0" />
-                </label>
-              </div>
-
-              <div class="section-subtitle">عکس پروفایل</div>
-              <div class="row" style="align-items:center;">
-                <img id="profAvatar" class="avatar" alt="" />
-                <input type="file" id="profAvatarFile" accept="image/*" />
-                <button type="button" id="profAvatarUpload">آپلود</button>
-                <button type="button" id="profAvatarRemove" class="btn-sm danger">حذف عکس</button>
-              </div>
-
-              <div id="femaleOnly" class="form-grid two" style="margin-top:8px; display:none;">
-                <label>آخرین تاریخ تقریبی سیکل (شمسی)
-                  <div class="j-date" id="cJDate">
-                    <input type="text" id="cycleJalali" placeholder="مثلاً 1403/07/01" readonly />
-                    <input type="hidden" id="cycleISO" />
-                    <button type="button" id="cJDateToggle">انتخاب</button>
-                    <div class="j-popup" id="cJDatePopup" hidden>
-                      <div class="j-header">
-                        <button type="button" id="cPrev">«</button>
-                        <span id="cYMLabel"></span>
-                        <button type="button" id="cNext">»</button>
-                      </div>
-                      <div class="j-days" id="cDays"></div>
-                    </div>
-                  </div>
-                </label>
-              </div>
-
-              <div class="section-subtitle">اسناد پزشکی</div>
-              <div class="row">
-                <input type="file" id="profDocFile" accept="image/*,.pdf" />
-                <button type="button" id="profUpload">آپلود</button>
-              </div>
-              <div id="profDocs" class="list" style="margin-top:8px"></div>
-
-              <div class="row">
-                <button type="submit">ذخیره</button>
-              </div>
-            </form>
-          </div>
-        </section>
-      </main>
-    </div>
-  </div>
-
-  <script>
-    (function () {
-      if (window.API_BASE) return;
-      const origin = (window.location && window.location.origin)
-        ? window.location.origin.replace(/\/$/, '')
-        : '';
-      window.API_BASE = origin + '/api';
-    })();
-  </script>
-  <script src="js/api.js"></script>
-  <script src="js/db.js"></script>
-  <script src="js/jalali.js"></script>
-  <script src="js/student.js"></script>
+  <p style="font-family: sans-serif; text-align: center; margin-top: 20vh;">
+    در حال انتقال به <a href="/app/student.html">/app/student.html</a> …
+  </p>
 </body>
 </html>
