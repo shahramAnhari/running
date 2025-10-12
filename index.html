@@ -3,47 +3,121 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>
-    (function () {
-      const origin = (window.location && window.location.origin)
-        ? window.location.origin.replace(/\/$/, '')
-        : '';
-      window.API_BASE = origin + '/api';
-    })();
-  </script>
-  <script>
-    (function () {
-      const param = 'kvn-push-debug';
-      const url = new URL(window.location.href);
-      if (!url.searchParams.has(param)) return;
-      url.searchParams.delete(param);
-      window.history.replaceState({}, document.title, url.toString());
-    })();
-  </script>
-  <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
-
-  <title>اپ مربی/شاگرد</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>SHOTARUN</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-overlay: rgba(0, 0, 0, 0.68);
+      --accent: #ff4f1f;
+      --accent-hover: #ff6a3e;
+      --text: #f5f7fb;
+      --muted: #cbd5f5;
+      --shadow: 0 35px 120px rgba(0, 0, 0, 0.65);
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: "Inter", "Vazirmatn", "IRANSans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050505;
+      color: var(--text);
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(24px, 6vw, 72px);
+    }
+    .hero {
+      position: relative;
+      width: min(1100px, 100%);
+      aspect-ratio: 16 / 9;
+      border-radius: 28px;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--bg-overlay), var(--bg-overlay)),
+        url("app/assets/runner-hero.jpg") center/cover no-repeat,
+        radial-gradient(circle at 30% 30%, #2b2b31, #050505 75%);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
+    }
+    .content {
+      padding: clamp(24px, 6vw, 64px);
+      max-width: 420px;
+    }
+    .logo {
+      font-size: clamp(26px, 6vw, 48px);
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: clamp(10px, 2vw, 18px);
+    }
+    .tagline {
+      font-size: clamp(16px, 3vw, 20px);
+      line-height: 1.6;
+      color: var(--muted);
+      margin-bottom: clamp(28px, 5vw, 42px);
+    }
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 32px;
+      border-radius: 999px;
+      border: none;
+      background: var(--accent);
+      color: #050505;
+      font-size: clamp(16px, 3vw, 18px);
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      box-shadow: 0 18px 45px rgba(255, 79, 31, 0.45);
+    }
+    .cta:hover,
+    .cta:focus-visible {
+      background: var(--accent-hover);
+      transform: translateY(-3px);
+      box-shadow: 0 24px 55px rgba(255, 105, 63, 0.48);
+    }
+    .cta:focus-visible {
+      outline: 3px solid rgba(255, 79, 31, 0.55);
+      outline-offset: 4px;
+    }
+    @media (max-width: 768px) {
+      .hero {
+        aspect-ratio: 10 / 16;
+        align-items: flex-start;
+      }
+      .content {
+        padding: clamp(24px, 6vw, 48px);
+        margin-top: auto;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>اپ مربی/شاگرد</h1>
-    <p>یکی از پنل‌ها را انتخاب کنید:</p>
-
-    <div class="cards">
-      <a class="card" href="coach.html">
-        <h2>پنل مربی</h2>
-        <p>ساخت برنامه، گروه‌بندی شاگردها، و انتساب برنامه‌ها</p>
-      </a>
-      <a class="card" href="student.html">
-        <h2>پنل شاگرد</h2>
-        <p>مشاهده برنامه‌های اختصاص داده‌شده</p>
-      </a>
-      <a class="card" href="admin.html">
-        <h2>پنل مدیریت</h2>
-        <p>ساخت و مدیریت ادمین‌ها، کنترل دسترسی و تنظیمات بک‌اند</p>
-      </a>
-    </div>
-  </div>
+  <main class="hero">
+    <section class="content" aria-label="SHOTARUN Hero">
+      <h1 class="logo">SHOTARUN</h1>
+      <p class="tagline">
+        دنیای اختصاصی دوندگان؛ جایی که مربی و شاگرد در کنار هم برای ساختن بهترین نسخه تلاش می‌کنند.
+      </p>
+      <a class="cta" href="/app/">I'm a Runner</a>
+    </section>
+  </main>
 </body>
 </html>

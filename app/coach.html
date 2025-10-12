@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>پنل مربی</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    (function () {
+      const origin = (window.location && window.location.origin)
+        ? window.location.origin.replace(/\/$/, '')
+        : '';
+      window.API_BASE = origin + '/api';
+    })();
+  </script>
+  <script>
+    (function () {
+      const param = 'kvn-push-debug';
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has(param)) return;
+      url.searchParams.delete(param);
+      window.history.replaceState({}, document.title, url.toString());
+    })();
+  </script>
+  <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
+  <script src="js/api.js"></script>
+
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <h1>پنل مربی</h1>
+      <nav>
+        <a href="index.html">بازگشت</a>
+      </nav>
+    </header>
+
+    <section class="card login-card" id="coachLoginCard">
+      <h2>ورود مربی</h2>
+      <form id="coachLoginForm">
+        <label>ایمیل
+          <input type="email" id="coachLoginEmail" required placeholder="coach@example.com" />
+        </label>
+        <label>رمز عبور
+          <input type="password" id="coachLoginPassword" required placeholder="حداقل ۶ کاراکتر" />
+        </label>
+        <button type="submit">ورود</button>
+      </form>
+      <div id="coachLoginMsg" class="muted"></div>
+    </section>
+
+    <div class="layout" id="coachAppArea" style="display:none">
+      <aside class="sidebar">
+        <button class="side-link active" data-panel="programs">برنامه‌ها</button>
+        <button class="side-link" data-panel="groups">گروه‌ها</button>
+        <button class="side-link" data-panel="students">شاگردها</button>
+        <button class="side-link" data-panel="assignments">انتساب‌ها</button>
+        <button class="side-link" data-panel="payments">پرداخت‌ها</button>
+        <button class="side-link" data-panel="overview">نمای کلی شاگرد</button>
+        <button class="side-link" data-panel="logs">گزارش روزانه</button>
+        <button class="side-link" data-panel="coach-goals">اهداف شاگردان</button>
+        <div class="side-footer">
+          <button id="seedDemo" class="side-secondary">داده‌ی نمونه</button>
+          <button id="coachLogout" class="side-secondary danger">خروج</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="panel" data-panel="programs">
+          <div class="card">
+            <h2>ساخت برنامه</h2>
+            <form id="programForm">
+              <label>عنوان برنامه
+                <input type="text" id="programTitle" required />
+              </label>
+              <label>توضیحات
+                <textarea id="programDesc" rows="3" placeholder="توضیح کوتاه"></textarea>
+              </label>
+              <details class="week-details">
+                <summary>برنامه هفتگی (برای هر روز)</summary>
+                <div class="week-grid">
+                  <label>شنبه
+                    <textarea id="w_sat" rows="2" placeholder="تمرینات شنبه"></textarea>
+                  </label>
+                  <label>یکشنبه
+                    <textarea id="w_sun" rows="2" placeholder="تمرینات یکشنبه"></textarea>
+                  </label>
+                  <label>دوشنبه
+                    <textarea id="w_mon" rows="2" placeholder="تمرینات دوشنبه"></textarea>
+                  </label>
+                  <label>سه‌شنبه
+                    <textarea id="w_tue" rows="2" placeholder="تمرینات سه‌شنبه"></textarea>
+                  </label>
+                  <label>چهارشنبه
+                    <textarea id="w_wed" rows="2" placeholder="تمرینات چهارشنبه"></textarea>
+                  </label>
+                  <label>پنجشنبه
+                    <textarea id="w_thu" rows="2" placeholder="تمرینات پنجشنبه"></textarea>
+                  </label>
+                  <label>جمعه
+                    <textarea id="w_fri" rows="2" placeholder="تمرینات جمعه"></textarea>
+                  </label>
+                </div>
+              </details>
+              <button type="submit">ثبت برنامه</button>
+            </form>
+            <div class="list" id="programList"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="groups" hidden>
+          <div class="card">
+            <h2>ساخت گروه</h2>
+            <form id="groupForm">
+              <label>نام گروه
+                <input type="text" id="groupName" required />
+              </label>
+              <button type="submit">ثبت گروه</button>
+            </form>
+            <div class="list" id="groupList"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="students" hidden>
+          <div class="card">
+            <h2>دانشجوها</h2>
+            <details>
+              <summary>افزودن شاگرد توسط مربی</summary>
+              <form id="studentForm" class="form-grid">
+                <label>نام شاگرد
+                  <input type="text" id="studentName" required />
+                </label>
+                <label>ایمیل شاگرد (اختیاری)
+                  <input type="email" id="studentEmail" placeholder="مثلاً ali@example.com" />
+                </label>
+                <label>شماره موبایل (اختیاری)
+                  <input type="tel" id="studentPhone" placeholder="مثلاً 09..." />
+                </label>
+                <label>انتخاب گروه
+                  <select id="studentGroup" required></select>
+                </label>
+                <label>رمز اولیه (اختیاری)
+                  <input type="password" id="studentPassword" placeholder="اگر خالی بگذارید، شاگرد بعداً رمز تعیین می‌کند" />
+                </label>
+                <button type="submit">افزودن شاگرد</button>
+              </form>
+            </details>
+
+            <details open style="margin-top:16px">
+              <summary>درخواست‌های در انتظار تایید</summary>
+              <div class="list" id="pendingStudentList"></div>
+            </details>
+
+            <details open style="margin-top:16px">
+              <summary>فهرست شاگردهای تایید شده</summary>
+              <div class="list" id="studentList"></div>
+            </details>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="assignments" hidden>
+          <div class="card">
+            <h2>انتساب برنامه</h2>
+            <form id="assignGroupForm">
+              <label>برنامه
+                <select id="assignProgramForGroup" required></select>
+              </label>
+              <label>به گروه
+                <select id="assignTargetGroup" required></select>
+              </label>
+              <div class="row">
+                <label style="flex:1">تاریخ شروع (شمسی)
+                  <div class="j-date" id="gJDate">
+                    <input type="text" id="assignGroupStartJalali" placeholder="مثلاً 1403/07/10" readonly />
+                    <input type="hidden" id="assignGroupStartISO" />
+                    <button type="button" id="gJDateToggle">انتخاب</button>
+                    <div class="j-popup" id="gJDatePopup" hidden>
+                      <div class="j-header">
+                        <button type="button" id="gPrev">«</button>
+                        <span id="gYMLabel"></span>
+                        <button type="button" id="gNext">»</button>
+                      </div>
+                      <div class="j-days" id="gDays"></div>
+                    </div>
+                  </div>
+                </label>
+                <label style="flex:1">مدت (روز)
+                  <input type="number" id="assignGroupDuration" value="7" min="1" max="60" />
+                </label>
+              </div>
+              <button type="submit">انتساب به گروه</button>
+            </form>
+
+            <hr />
+
+            <form id="assignStudentForm">
+              <label>برنامه
+                <select id="assignProgramForStudent" required></select>
+              </label>
+              <label>به شاگرد
+                <select id="assignTargetStudent" required></select>
+              </label>
+              <div class="row">
+                <label style="flex:1">تاریخ شروع (شمسی)
+                  <div class="j-date" id="sJDate">
+                    <input type="text" id="assignStudentStartJalali" placeholder="مثلاً 1403/07/10" readonly />
+                    <input type="hidden" id="assignStudentStartISO" />
+                    <button type="button" id="sJDateToggle">انتخاب</button>
+                    <div class="j-popup" id="sJDatePopup" hidden>
+                      <div class="j-header">
+                        <button type="button" id="sPrev">«</button>
+                        <span id="sYMLabel"></span>
+                        <button type="button" id="sNext">»</button>
+                      </div>
+                      <div class="j-days" id="sDays"></div>
+                    </div>
+                  </div>
+                </label>
+                <label style="flex:1">مدت (روز)
+                  <input type="number" id="assignStudentDuration" value="7" min="1" max="60" />
+                </label>
+              </div>
+              <button type="submit">انتساب به شاگرد</button>
+            </form>
+
+            <div class="list" id="assignmentList"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="payments" hidden>
+          <div class="card">
+            <h2>پرداخت‌های شاگردان</h2>
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+              <label style="flex:1; min-width:220px;">فیلتر بر اساس شاگرد
+                <select id="paymentFilterStudent"></select>
+              </label>
+              <label style="flex:2; min-width:220px;">جستجو در پرداخت‌ها
+                <input type="text" id="paymentSearch" placeholder="نام/ایمیل/ماه/توضیح" />
+              </label>
+              <button id="clearPaymentFilter" type="button">نمایش همه</button>
+            </div>
+            <div id="coachPaymentList" class="list" style="margin-top:10px"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="overview" hidden>
+          <div class="card">
+            <h2>نمای کلی شاگرد</h2>
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+              <label style="flex:2; min-width:220px;">جستجو نام/ایمیل
+                <input type="text" id="ovSearch" placeholder="مثلاً ali@example.com یا علی" />
+              </label>
+              <label style="flex:1; min-width:220px;">انتخاب شاگرد
+                <select id="ovStudent"></select>
+              </label>
+              <button id="ovClear" type="button">پاک‌سازی</button>
+            </div>
+
+            <div id="ovContent" class="list" style="margin-top:10px"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="logs" hidden>
+          <div class="card">
+            <h2>گزارش روزانه شاگردان</h2>
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+              <label style="flex:1; min-width:220px;">انتخاب شاگرد
+                <select id="logFilterStudent"></select>
+              </label>
+              <label style="flex:2; min-width:220px;">جستجو
+                <input type="text" id="logSearch" placeholder="نام/ایمیل/برنامه/یادداشت/محل/کفش..." />
+              </label>
+              <button id="clearLogFilter" type="button">نمایش همه</button>
+            </div>
+            <div id="coachLogList" class="list" style="margin-top:10px"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="coach-goals" hidden>
+          <div class="card">
+            <h2>اهداف شاگردان</h2>
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+              <label style="flex:1; min-width:220px;">انتخاب شاگرد
+                <select id="goalFilterStudent"></select>
+              </label>
+            </div>
+            <div id="coachGoalList" class="list" style="margin-top:10px"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/db.js"></script>
+  <script src="js/jalali.js"></script>
+  <script src="js/coach.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      const origin = (window.location && window.location.origin)
+        ? window.location.origin.replace(/\/$/, '')
+        : '';
+      window.API_BASE = origin + '/api';
+    })();
+  </script>
+  <script>
+    (function () {
+      const param = 'kvn-push-debug';
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has(param)) return;
+      url.searchParams.delete(param);
+      window.history.replaceState({}, document.title, url.toString());
+    })();
+  </script>
+  <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
+
+  <title>اپ مربی/شاگرد</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>اپ مربی/شاگرد</h1>
+    <p>یکی از پنل‌ها را انتخاب کنید:</p>
+
+    <div class="cards">
+      <a class="card" href="coach.html">
+        <h2>پنل مربی</h2>
+        <p>ساخت برنامه، گروه‌بندی شاگردها، و انتساب برنامه‌ها</p>
+      </a>
+      <a class="card" href="student.html">
+        <h2>پنل شاگرد</h2>
+        <p>مشاهده برنامه‌های اختصاص داده‌شده</p>
+      </a>
+      <a class="card" href="admin.html">
+        <h2>پنل مدیریت</h2>
+        <p>ساخت و مدیریت ادمین‌ها، کنترل دسترسی و تنظیمات بک‌اند</p>
+      </a>
+    </div>
+  </div>
+</body>
+</html>
