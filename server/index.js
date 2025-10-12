@@ -10,6 +10,10 @@ const db = require('./db');
 
 const app = express();
 
+const publicRoot = path.join(__dirname, '..');
+app.use('/', express.static(publicRoot));
+app.use('/app', express.static(path.join(publicRoot, 'app')));
+
 const uploadsRoot = path.join(__dirname, 'uploads');
 const docsDir = path.join(uploadsRoot, 'docs');
 const paymentsDir = path.join(uploadsRoot, 'payments');
