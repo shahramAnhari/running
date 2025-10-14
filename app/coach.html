@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>پنل مربی</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-Sb0V7CqZmqAh7vEihQ/HUkNzxaz2QmiFjCwXTlzAIXazhbugzuDUFcPRl1BDpRP70dNDO7xjOIKT2OXdwYwsgg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="styles.css" />
   <script>
     (function () {
@@ -26,10 +27,16 @@
   <script src="js/api.js"></script>
 
 </head>
-<body>
+<body class="coach-body">
   <div class="container">
-    <header class="topbar">
-      <h1>پنل مربی</h1>
+    <header class="topbar coach-header">
+      <div class="header-user">
+        <div class="logo-mark"><i class="fa-solid fa-dumbbell"></i></div>
+        <div>
+          <h1>پنل مربی</h1>
+          <p class="note">مدیریت برنامه‌ها، شاگردها و پیشرفت آن‌ها در یک نگاه</p>
+        </div>
+      </div>
       <nav>
         <a href="index.html">بازگشت</a>
       </nav>
@@ -37,14 +44,14 @@
 
     <section class="card login-card" id="coachLoginCard">
       <h2>ورود مربی</h2>
-      <form id="coachLoginForm">
+      <form id="coachLoginForm" class="form-stack">
         <label>ایمیل
           <input type="email" id="coachLoginEmail" required placeholder="coach@example.com" />
         </label>
         <label>رمز عبور
           <input type="password" id="coachLoginPassword" required placeholder="حداقل ۶ کاراکتر" />
         </label>
-        <button type="submit">ورود</button>
+        <button type="submit" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> ورود</button>
       </form>
       <div id="coachLoginMsg" class="muted"></div>
     </section>
@@ -69,7 +76,7 @@
         <section class="panel" data-panel="programs">
           <div class="card">
             <h2>ساخت برنامه</h2>
-            <form id="programForm">
+            <form id="programForm" class="form-stack">
               <label>عنوان برنامه
                 <input type="text" id="programTitle" required />
               </label>
@@ -102,7 +109,7 @@
                   </label>
                 </div>
               </details>
-              <button type="submit">ثبت برنامه</button>
+              <button type="submit" class="btn-primary"><i class="fa-solid fa-plus"></i> ثبت برنامه</button>
             </form>
             <div class="list" id="programList"></div>
           </div>
@@ -111,11 +118,11 @@
         <section class="panel" data-panel="groups" hidden>
           <div class="card">
             <h2>ساخت گروه</h2>
-            <form id="groupForm">
+            <form id="groupForm" class="form-stack">
               <label>نام گروه
                 <input type="text" id="groupName" required />
               </label>
-              <button type="submit">ثبت گروه</button>
+              <button type="submit" class="btn-primary"><i class="fa-solid fa-plus"></i> ثبت گروه</button>
             </form>
             <div class="list" id="groupList"></div>
           </div>
@@ -126,7 +133,7 @@
             <h2>دانشجوها</h2>
             <details>
               <summary>افزودن شاگرد توسط مربی</summary>
-              <form id="studentForm" class="form-grid">
+              <form id="studentForm" class="form-grid form-stack">
                 <label>نام شاگرد
                   <input type="text" id="studentName" required />
                 </label>
@@ -142,17 +149,17 @@
                 <label>رمز اولیه (اختیاری)
                   <input type="password" id="studentPassword" placeholder="اگر خالی بگذارید، شاگرد بعداً رمز تعیین می‌کند" />
                 </label>
-                <button type="submit">افزودن شاگرد</button>
+                <button type="submit" class="btn-primary"><i class="fa-solid fa-user-plus"></i> افزودن شاگرد</button>
               </form>
             </details>
 
             <details open style="margin-top:16px">
-              <summary>درخواست‌های در انتظار تایید</summary>
+              <summary>درخواست‌های در انتظار تایید (<span id="pendingStudentCount">0</span>)</summary>
               <div class="list" id="pendingStudentList"></div>
             </details>
 
             <details open style="margin-top:16px">
-              <summary>فهرست شاگردهای تایید شده</summary>
+              <summary>فهرست شاگردهای تایید شده (<span id="approvedStudentCount">0</span>)</summary>
               <div class="list" id="studentList"></div>
             </details>
           </div>
@@ -161,7 +168,7 @@
         <section class="panel" data-panel="assignments" hidden>
           <div class="card">
             <h2>انتساب برنامه</h2>
-            <form id="assignGroupForm">
+            <form id="assignGroupForm" class="form-stack">
               <label>برنامه
                 <select id="assignProgramForGroup" required></select>
               </label>
@@ -188,12 +195,12 @@
                   <input type="number" id="assignGroupDuration" value="7" min="1" max="60" />
                 </label>
               </div>
-              <button type="submit">انتساب به گروه</button>
+              <button type="submit" class="btn-primary"><i class="fa-solid fa-paper-plane"></i> انتساب به گروه</button>
             </form>
 
             <hr />
 
-            <form id="assignStudentForm">
+            <form id="assignStudentForm" class="form-stack">
               <label>برنامه
                 <select id="assignProgramForStudent" required></select>
               </label>
@@ -220,7 +227,7 @@
                   <input type="number" id="assignStudentDuration" value="7" min="1" max="60" />
                 </label>
               </div>
-              <button type="submit">انتساب به شاگرد</button>
+              <button type="submit" class="btn-primary"><i class="fa-solid fa-paper-plane"></i> انتساب به شاگرد</button>
             </form>
 
             <div class="list" id="assignmentList"></div>
@@ -237,7 +244,7 @@
               <label style="flex:2; min-width:220px;">جستجو در پرداخت‌ها
                 <input type="text" id="paymentSearch" placeholder="نام/ایمیل/ماه/توضیح" />
               </label>
-              <button id="clearPaymentFilter" type="button">نمایش همه</button>
+              <button id="clearPaymentFilter" type="button" class="btn-outline"><i class="fa-solid fa-rotate"></i> نمایش همه</button>
             </div>
             <div id="coachPaymentList" class="list" style="margin-top:10px"></div>
           </div>
@@ -253,7 +260,7 @@
               <label style="flex:1; min-width:220px;">انتخاب شاگرد
                 <select id="ovStudent"></select>
               </label>
-              <button id="ovClear" type="button">پاک‌سازی</button>
+              <button id="ovClear" type="button" class="btn-outline"><i class="fa-solid fa-eraser"></i> پاک‌سازی</button>
             </div>
 
             <div id="ovContent" class="list" style="margin-top:10px"></div>
@@ -270,7 +277,7 @@
               <label style="flex:2; min-width:220px;">جستجو
                 <input type="text" id="logSearch" placeholder="نام/ایمیل/برنامه/یادداشت/محل/کفش..." />
               </label>
-              <button id="clearLogFilter" type="button">نمایش همه</button>
+              <button id="clearLogFilter" type="button" class="btn-outline"><i class="fa-solid fa-rotate"></i> نمایش همه</button>
             </div>
             <div id="coachLogList" class="list" style="margin-top:10px"></div>
           </div>
@@ -288,6 +295,16 @@
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <div id="coachModal" class="modal" hidden>
+    <div class="modal-content coach-modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 id="coachModalTitle">ویرایش</h3>
+        <button type="button" class="modal-close" id="coachModalClose" aria-label="بستن"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="coachModalForm" class="form-stack"></form>
     </div>
   </div>
 

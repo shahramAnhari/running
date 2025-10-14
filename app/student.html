@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>پنل شاگرد</title>
+  <title>پنل شاطران</title>
   <script>
     (function () {
       const origin = (window.location && window.location.origin)
@@ -24,15 +24,19 @@
   <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
   <script src="js/api.js"></script>
 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-Sb0V7CqZmqAh7vEihQ/HUkNzxaz2QmiFjCwXTlzAIXazhbugzuDUFcPRl1BDpRP70dNDO7xjOIKT2OXdwYwsgg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="styles.css" />
 
 </head>
-<body>
+<body class="student-body">
   <div class="container">
     <header class="topbar">
       <div class="header-user">
-        <img id="studentAvatarHdr" class="avatar-sm" alt="" style="display:none" />
-        <h1 id="studentNameHdr">پنل شاگرد</h1>
+        <div class="logo-mark"><i class="fa-solid fa-person-running"></i></div>
+        <div>
+          <h1 id="studentNameHdr">پنل شاطران</h1>
+          <p class="note">داشبوردی برای پیگیری تمرین‌ها و ارتباط با مربی</p>
+        </div>
       </div>
       <nav>
         <a href="index.html">بازگشت</a>
@@ -40,32 +44,78 @@
     </header>
 
     <section class="card login-card">
-      <h2>ورود</h2>
-      <form id="loginForm">
-        <label>ایمیل (اختیاری)
-          <input type="email" id="loginEmail" placeholder="example@mail.com" />
+      <h2><i class="fa-solid fa-lock"></i> حساب شاگرد</h2>
+      <p class="note">با ایمیل خود وارد شوید یا ثبت‌نام کنید. در صورت فراموشی رمز، بازیابی تنها چند ثانیه طول می‌کشد.</p>
+
+      <div class="auth-views">
+      <form id="loginForm" class="auth-view form-stack" data-auth-view="login">
+        <label>ایمیل
+          <input type="email" id="loginEmail" required placeholder="example@mail.com" />
         </label>
-        <label>شماره موبایل (اختیاری)
-          <input type="tel" id="loginPhone" placeholder="مثلاً 09..." />
+        <label>رمز عبور
+          <input type="password" id="loginPassword" required minlength="6" placeholder="********" />
         </label>
-        <label style="display:flex; gap:8px; align-items:center;">
+        <label class="checkbox-row">
           <input type="checkbox" id="rememberMe" checked />
-          <span>اطلاعات ورود را به خاطر بسپار</span>
+          <span>مرا به خاطر بسپار</span>
         </label>
-        <button type="submit">مشاهده برنامه‌ها</button>
+        <button type="submit" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> ورود</button>
       </form>
-      <div class="muted" style="margin-top:8px">برای ورود، یکی از ایمیل یا موبایل را وارد کنید. در اولین ورود، کد تایید برای شما نمایش داده می‌شود.</div>
-      <div id="loginMsg" class="muted"></div>
-      <div id="verifyArea" class="verify-area" style="display:none">
-        <div class="muted" id="verifyInstruction">ایمیل شما تایید نشده است. کد تایید را وارد کنید.</div>
-        <div class="row">
-          <button type="button" id="sendCode">ارسال کد</button>
-          <input type="text" id="verifyCode" inputmode="numeric" placeholder="کد ۶ رقمی" style="max-width:160px" />
-          <button type="button" id="confirmCode">تایید</button>
-        </div>
-        <div id="verifyMsg" class="muted"></div>
+
+      <form id="registerForm" class="auth-view form-stack" data-auth-view="register" hidden>
+        <label>نام و نام خانوادگی (اختیاری)
+          <input type="text" id="registerName" placeholder="مثلاً علی رضایی" />
+        </label>
+        <label>ایمیل
+          <input type="email" id="registerEmail" required placeholder="example@mail.com" />
+        </label>
+        <label>رمز عبور
+          <input type="password" id="registerPassword" required minlength="6" placeholder="حداقل ۶ کاراکتر" />
+        </label>
+        <label>تکرار رمز عبور
+          <input type="password" id="registerPasswordConfirm" required minlength="6" placeholder="رمز را دوباره وارد کنید" />
+        </label>
+        <div class="note">بعد از ثبت‌نام، مربی باید حساب شما را تایید کند.</div>
+        <button type="submit" class="btn-primary"><i class="fa-solid fa-user-plus"></i> ثبت‌نام</button>
+      </form>
+
+      <div id="forgotView" class="auth-view" data-auth-view="forgot" hidden>
+        <form id="forgotRequestForm" class="form-stack">
+          <label>ایمیل
+            <input type="email" id="forgotEmail" required placeholder="example@mail.com" />
+          </label>
+          <button type="submit" class="btn-primary"><i class="fa-solid fa-envelope-circle-check"></i> ارسال کد بازیابی</button>
+        </form>
+        <form id="forgotResetForm" class="form-stack" style="margin-top:16px">
+          <label>ایمیل
+            <input type="email" id="forgotResetEmail" required placeholder="example@mail.com" />
+          </label>
+          <label>کد بازیابی
+            <input type="text" id="forgotToken" required placeholder="کد ارسال‌شده" />
+          </label>
+          <label>رمز جدید
+            <input type="password" id="forgotNewPassword" required minlength="6" placeholder="حداقل ۶ کاراکتر" />
+          </label>
+          <button type="submit" class="btn-primary"><i class="fa-solid fa-key"></i> تغییر رمز</button>
+        </form>
+      </div>
+      </div>
+
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth="login"><i class="fa-solid fa-right-to-bracket"></i> ورود</button>
+        <button type="button" class="auth-tab" data-auth="register"><i class="fa-solid fa-user-plus"></i> ثبت‌نام</button>
+        <button type="button" class="auth-tab" data-auth="forgot"><i class="fa-solid fa-key"></i> فراموشی رمز</button>
       </div>
     </section>
+
+    <div id="authModal" class="modal" hidden>
+      <div class="modal-content" role="alert">
+        <p id="authModalMsg"></p>
+        <div class="modal-actions">
+          <button type="button" id="authModalClose" class="btn-primary">باشه</button>
+        </div>
+      </div>
+    </div>
 
     <div id="appArea" class="layout" style="display:none">
       <aside class="sidebar">
@@ -92,7 +142,7 @@
         <section class="panel" data-panel="payments" hidden>
           <div class="card">
             <h2>پرداخت‌های ماهانه</h2>
-            <form id="paymentForm">
+            <form id="paymentForm" class="form-stack">
               <label>ماه پرداخت (شمسی)
                 <div class="j-month" id="jMonth">
                   <input type="text" id="paymentMonthJalali" placeholder="مثلاً 1403 مهر" readonly />
@@ -124,7 +174,7 @@
         <section class="panel" data-panel="goals" hidden>
           <div class="card">
             <h2>هدف‌ها</h2>
-            <form id="goalForm">
+            <form id="goalForm" class="form-stack">
               <label>عنوان هدف
                 <input type="text" id="goalTitle" placeholder="مثلاً کاهش ۵ کیلو" required />
               </label>
@@ -270,7 +320,7 @@
                 <canvas id="stMoodChart" height="60"></canvas>
               </div>
             </div>
-            <form id="logForm">
+            <form id="logForm" class="form-stack">
               <div class="section-subtitle">انتخاب تمرین</div>
               <div class="form-grid two">
                 <label>تمرین
@@ -395,7 +445,7 @@
         <section class="panel" data-panel="profile" hidden>
           <div class="card">
             <h2>پروفایل شاگرد</h2>
-            <form id="profileForm">
+      <form id="profileForm" class="form-stack">
               <div class="form-grid two">
                 <label>نام
                   <input type="text" id="profName" />

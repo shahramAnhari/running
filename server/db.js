@@ -177,6 +177,8 @@ function ensureSchema() {
   ensureColumn('students', 'password_hash', 'TEXT');
   ensureColumn('students', 'created_at', 'TEXT');
   ensureColumn('students', 'last_login_at', 'TEXT');
+  ensureColumn('students', 'reset_token', 'TEXT');
+  ensureColumn('students', 'reset_expires_at', 'TEXT');
   ensureColumn('students', 'verification_code', 'TEXT');
   ensureColumn('students', 'verification_expires_at', 'TEXT');
   ensureColumn('students', 'profile_json', 'TEXT');
@@ -463,6 +465,30 @@ function addStudent({ name, email, groupId, phone, password, status = 'approved'
   return getStudent(id);
 }
 
+function registerStudent({ name, email, password, phone }) {
+  if (!email || !password) throw new Error('ایمیل و رمز الزامی است');
+  const emailNorm = String(email).trim().toLowerCase();
+  const displayName = name && String(name).trim() ? String(name).trim() : 'کاربر جدید';
+  const phoneNorm = normalizePhone(phone);
+
+  const existing = db.prepare('SELECT id FROM students WHERE LOWER(email) = ?').get(emailNorm);
+  if (existing) throw new Error('این ایمیل قبلاً ثبت شده است');
+
+  if (phoneNorm) {
+    const existsPhone = db.prepare('SELECT id FROM students WHERE phone = ?').get(phoneNorm);
+    if (existsPhone) throw new Error('این شماره موبایل قبلاً ثبت شده است');
+  }
+
+  const created = addStudent({
+    name: displayName,
+    email: emailNorm,
+    phone: phoneNorm,
+    password,
+    status: 'pending',
+  });
+  return created;
+}
+
 function updateStudent(id, { name, email, groupId, phone }) {
   const current = db.prepare('SELECT * FROM students WHERE id = ?').get(id);
   if (!current) throw new Error('Student not found');
@@ -595,6 +621,11 @@ function authenticateStudent({ email, password }) {
   if (!row) throw new Error('شاگرد یافت نشد');
   if (!row.password_hash) throw new Error('برای این حساب رمزی تعیین نشده است');
   if (!checkPassword(password, row.password_hash)) throw new Error('رمز نادرست است');
+  if (row.status && row.status !== 'approved') {
+    if (row.status === 'pending') throw new Error('حساب شما هنوز توسط مربی تایید نشده است');
+    if (row.status === 'rejected') throw new Error('دسترسی این حساب غیرفعال شده است');
+    throw new Error('ورود برای این حساب ممکن نیست');
+  }
   db.prepare('UPDATE students SET last_login_at = ? WHERE id = ?').run(now(), row.id);
   return getStudent(row.id);
 }
@@ -603,6 +634,30 @@ function setStudentPassword(id, password) {
   const hash = hashPassword(password);
   db.prepare('UPDATE students SET password_hash = ? WHERE id = ?').run(hash, id);
   return getStudent(id);
+}
+
+function createStudentResetToken({ email, token, expiresAt }) {
+  if (!email || !token || !expiresAt) throw new Error('ایمیل و توکن الزامی است');
+  const row = db.prepare('SELECT * FROM students WHERE LOWER(email) = ?').get(String(email).trim().toLowerCase());
+  if (!row) throw new Error('شاگرد یافت نشد');
+  db.prepare('UPDATE students SET reset_token = ?, reset_expires_at = ? WHERE id = ?')
+    .run(String(token), String(expiresAt), row.id);
+  return getStudent(row.id);
+}
+
+function resetStudentPasswordWithToken({ email, token, password }) {
+  if (!email || !token || !password) throw new Error('اطلاعات کامل نیست');
+  const row = db.prepare('SELECT * FROM students WHERE LOWER(email) = ?').get(String(email).trim().toLowerCase());
+  if (!row) throw new Error('شاگرد یافت نشد');
+  if (!row.reset_token || !row.reset_expires_at) throw new Error('درخواست بازیابی یافت نشد');
+  if (row.reset_token !== String(token).trim()) throw new Error('کد بازیابی نامعتبر است');
+  const expires = Number(row.reset_expires_at);
+  if (!expires || Date.now() > expires) throw new Error('کد بازیابی منقضی شده است');
+
+  const hash = hashPassword(password);
+  db.prepare(`UPDATE students SET password_hash = ?, reset_token = NULL, reset_expires_at = NULL WHERE id = ?`)
+    .run(hash, row.id);
+  return getStudent(row.id);
 }
 
 function listPendingStudents() {
@@ -1243,6 +1298,9 @@ module.exports = {
   confirmStudentSignupByEmail,
   authenticateStudent,
   setStudentPassword,
+  registerStudent,
+  createStudentResetToken,
+  resetStudentPasswordWithToken,
   listPendingStudents,
   setStudentStatus,
   startEmailVerification,

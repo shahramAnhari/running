@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { sendMail } = require('./mailer');
 const db = require('./db');
 
@@ -339,45 +340,18 @@ app.get('/api/coach/me', requireCoach, (req, res) => {
 // ---------------------------------------------------------------------------
 // Student Auth (signup/login)
 
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', (req, res) => {
   try {
-    const { name, email, phone } = req.body || {};
-    const result = db.createPendingStudent({ name, email, phone });
-
-    if (result.via === 'email' && email) {
-      try {
-        await sendMail({
-          to: email,
-          subject: 'کد تایید شوتارَن',
-          text: `کد تایید شما: ${result.code}`,
-          html: `<p>کد تایید شما:</p><h2>${result.code}</h2>`,
-        });
-      } catch (mailErr) {
-        console.error('Email send failed:', mailErr);
-      }
-    }
-
+    const { name, email, password, phone } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'ایمیل و پسورد الزامی است' });
+    const student = db.registerStudent({ name, email, password, phone });
     res.json({
       ok: true,
-      student: result.student,
-      expiresAt: result.expiresAt,
-      via: result.via,
-      // در حالت توسعه همچنان کد را برمی‌گردانیم تا فرانت بتواند نمایش دهد
-      code: process.env.NODE_ENV === 'production' ? undefined : result.code,
+      student,
+      message: 'ثبت‌نام انجام شد. پس از تایید مربی می‌توانید وارد شوید.',
     });
   } catch (err) {
     res.status(400).json({ error: err.message || 'خطا در ثبت‌نام' });
-  }
-});
-
-app.post('/api/auth/verify', (req, res) => {
-  try {
-    const { email, code, password } = req.body || {};
-    if (!email || !code || !password) return res.status(400).json({ error: 'ایمیل، کد و پسورد الزامی است' });
-    const student = db.confirmStudentSignupByEmail({ email, code, password });
-    res.json({ ok: true, student });
-  } catch (err) {
-    res.status(400).json({ error: err.message || 'خطا در تایید حساب' });
   }
 });
 
@@ -389,6 +363,49 @@ app.post('/api/auth/login', (req, res) => {
     res.json({ ok: true, student });
   } catch (err) {
     res.status(400).json({ error: err.message || 'خطا در ورود' });
+  }
+});
+
+app.post('/api/auth/password/forgot', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'ایمیل الزامی است' });
+    const token = crypto.randomBytes(24).toString('hex');
+    const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
+    const student = db.createStudentResetToken({ email, token, expiresAt });
+
+    try {
+      await sendMail({
+        to: student.email,
+        subject: 'بازیابی رمز پنل شاگرد',
+        text: `برای تغییر رمز از این کد استفاده کنید: ${token}`,
+        html: `<p>برای تغییر رمز از این کد استفاده کنید:</p><h2>${token}</h2><p>این کد تا یک ساعت معتبر است.</p>`,
+      });
+    } catch (mailErr) {
+      console.error('Password reset email failed:', mailErr);
+    }
+
+    res.json({
+      ok: true,
+      expiresAt,
+      // در حالت توسعه توکن را برمی‌گردانیم تا از طریق UI اطلاع‌رسانی شود.
+      token: process.env.NODE_ENV === 'production' ? undefined : token,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در ثبت درخواست بازیابی' });
+  }
+});
+
+app.post('/api/auth/password/reset', (req, res) => {
+  try {
+    const { email, token, password } = req.body || {};
+    if (!email || !token || !password) {
+      return res.status(400).json({ error: 'ایمیل، کد و رمز جدید الزامی است' });
+    }
+    const student = db.resetStudentPasswordWithToken({ email, token, password });
+    res.json({ ok: true, student });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'خطا در تغییر رمز' });
   }
 });
 

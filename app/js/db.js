@@ -234,13 +234,16 @@
       if (result?.student) upsertStudentInstance(result.student);
       return result;
     },
-    async verifySignup(payload) {
-      const result = await API.verifySignup(payload);
-      if (result?.student) upsertStudentInstance(result.student);
-      return result;
-    },
     async loginStudent(payload) {
       return API.login(payload);
+    },
+    async requestPasswordReset(email) {
+      return API.forgotPassword({ email });
+    },
+    async confirmPasswordReset({ email, token, password }) {
+      const result = await API.resetPassword({ email, token, password });
+      if (result?.student) upsertStudentInstance(result.student);
+      return result;
     },
     async addStudent(payload) {
       const student = await API.addStudent(payload);
@@ -267,46 +270,6 @@
       state.assignments = state.assignments.filter(a => !(a.targetType === 'student' && a.targetId === id));
       state.payments = state.payments.filter(p => p.studentId !== id);
       invalidateStudentCaches(id);
-    },
-    async markStudentVerified(id) {
-      const res = await API.manualVerify(id);
-      if (res && res.ok) {
-        const s = findStudent(id);
-        if (s) s.verifiedAt = new Date().toISOString();
-      }
-      return res;
-    },
-    startEmailVerification(id) {
-      return API.startVerification(id);
-    },
-    verifyStudentEmail(id, code) {
-      return API.confirmVerification(id, code).then(res => {
-        if (res?.ok) {
-          const s = findStudent(id);
-          if (s) s.verifiedAt = new Date().toISOString();
-        }
-        return res?.ok || false;
-      });
-    },
-    async markStudentPhoneVerified(id) {
-      const res = await API.manualPhoneVerify(id);
-      if (res && res.ok) {
-        const s = findStudent(id);
-        if (s) s.phoneVerifiedAt = new Date().toISOString();
-      }
-      return res;
-    },
-    startPhoneVerification(id) {
-      return API.startPhoneVerification(id);
-    },
-    verifyStudentPhone(id, code) {
-      return API.confirmPhoneVerification(id, code).then(res => {
-        if (res?.ok) {
-          const s = findStudent(id);
-          if (s) s.phoneVerifiedAt = new Date().toISOString();
-        }
-        return res?.ok || false;
-      });
     },
     async listPendingStudents() {
       return API.listPendingStudents();

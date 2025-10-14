@@ -49,11 +49,14 @@ const API = {
   signup(payload) {
     return jsonRequest('/auth/signup', 'POST', payload);
   },
-  verifySignup(payload) {
-    return jsonRequest('/auth/verify', 'POST', payload);
-  },
   login(payload) {
     return jsonRequest('/auth/login', 'POST', payload);
+  },
+  forgotPassword(payload) {
+    return jsonRequest('/auth/password/forgot', 'POST', payload);
+  },
+  resetPassword(payload) {
+    return jsonRequest('/auth/password/reset', 'POST', payload);
   },
   coachLogin(payload) {
     return jsonRequest('/coach/login', 'POST', payload);
@@ -89,24 +92,6 @@ const API = {
   },
   rejectStudent(id) {
     return jsonRequest(`/students/${encodeURIComponent(id)}/reject`, 'POST');
-  },
-  startVerification(id) {
-    return jsonRequest(`/students/${encodeURIComponent(id)}/verify/start`, 'POST');
-  },
-  confirmVerification(id, code) {
-    return jsonRequest(`/students/${encodeURIComponent(id)}/verify/confirm`, 'POST', { code });
-  },
-  manualVerify(id) {
-    return jsonRequest(`/students/${encodeURIComponent(id)}/verify/manual`, 'POST');
-  },
-  startPhoneVerification(id) {
-    return jsonRequest(`/students/${encodeURIComponent(id)}/phone/verify/start`, 'POST');
-  },
-  confirmPhoneVerification(id, code) {
-    return jsonRequest(`/students/${encodeURIComponent(id)}/phone/verify/confirm`, 'POST', { code });
-  },
-  manualPhoneVerify(id) {
-    return jsonRequest(`/students/${encodeURIComponent(id)}/phone/verify/manual`, 'POST');
   },
   getProfile(studentId) {
     return request(`/students/${encodeURIComponent(studentId)}/profile`);

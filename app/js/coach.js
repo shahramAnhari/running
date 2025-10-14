@@ -58,6 +58,8 @@ async function initCoach() {
   const studentGroup = document.getElementById('studentGroup');
   const studentList = document.getElementById('studentList');
   const pendingStudentList = document.getElementById('pendingStudentList');
+  const pendingStudentCount = document.getElementById('pendingStudentCount');
+  const approvedStudentCount = document.getElementById('approvedStudentCount');
 
   const assignGroupForm = document.getElementById('assignGroupForm');
   const assignProgramForGroup = document.getElementById('assignProgramForGroup');
@@ -306,19 +308,20 @@ async function initCoach() {
   }
 
   async function renderStudents() {
-    const students = DB.listStudents();
+    const students = DB.listStudents().filter(s => !s.status || s.status === 'approved');
+    if (approvedStudentCount) approvedStudentCount.textContent = String(students.length);
     const groups = DB.listGroups();
     studentList.innerHTML = students.length ? '' : '<div class="muted">شاگردی ثبت نشده است</div>';
     students.forEach(s => {
       const gName = groups.find(g => g.studentIds.includes(s.id))?.name || '—';
       const emailLabel = s.email ? escapeHtml(s.email) : '—';
       const phoneLabel = s.phone ? escapeHtml(s.phone) : '—';
-      const emailStatus = s.email
-        ? (s.verifiedAt ? '<span class="chip">ایمیل تایید شده</span>' : '<span class="chip">ایمیل تایید نشده</span>')
-        : '<span class="chip">ایمیل ثبت نشده</span>';
-      const phoneStatus = s.phone
-        ? (s.phoneVerifiedAt ? '<span class="chip">موبایل تایید شده</span>' : '<span class="chip">موبایل تایید نشده</span>')
-        : '<span class="chip">موبایل ثبت نشده</span>';
+      const statusChip = (() => {
+        if (s.status === 'approved') return '<span class="chip success">تایید شده</span>';
+        if (s.status === 'pending') return '<span class="chip">در انتظار تایید</span>';
+        if (s.status === 'rejected') return '<span class="chip danger">رد شده</span>';
+        return '';
+      })();
       const el = document.createElement('div');
       el.className = 'item';
       el.innerHTML = `
@@ -328,7 +331,7 @@ async function initCoach() {
             <div class="muted">گروه: ${escapeHtml(gName)}</div>
             <div class="muted">ایمیل: ${emailLabel}</div>
             <div class="muted">موبایل: ${phoneLabel}</div>
-            <div class="chips" style="margin-top:6px">${emailStatus} ${phoneStatus}</div>
+            <div class="chips" style="margin-top:6px">${statusChip}</div>
           </div>
           <div class="actions" data-actions>
             <button class="btn-sm" data-edit-student="${s.id}">ویرایش</button>
@@ -337,19 +340,40 @@ async function initCoach() {
         </div>`;
       studentList.appendChild(el);
       const actionsBox = el.querySelector('[data-actions]');
-      if (!s.verifiedAt && s.email) {
-        const verifyEmailBtn = document.createElement('button');
-        verifyEmailBtn.className = 'btn-sm';
-        verifyEmailBtn.textContent = 'تایید ایمیل';
-        verifyEmailBtn.dataset.verifyStudent = s.id;
-        actionsBox.appendChild(verifyEmailBtn);
+      if (s.status !== 'approved') {
+        const approveBtn = document.createElement('button');
+        approveBtn.className = 'btn-sm success';
+        approveBtn.textContent = 'تایید';
+        approveBtn.addEventListener('click', async () => {
+          try {
+            await DB.approveStudent(s.id);
+            await renderStudents();
+            await renderPendingStudents();
+            refreshSelects();
+          } catch (err) {
+            console.error(err);
+            alert(err.message || 'خطا در تایید شاگرد');
+          }
+        });
+        actionsBox?.prepend(approveBtn);
       }
-      if (!s.phoneVerifiedAt && s.phone) {
-        const verifyPhoneBtn = document.createElement('button');
-        verifyPhoneBtn.className = 'btn-sm';
-        verifyPhoneBtn.textContent = 'تایید موبایل';
-        verifyPhoneBtn.dataset.verifyPhone = s.id;
-        actionsBox.appendChild(verifyPhoneBtn);
+      if (s.status !== 'rejected') {
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'btn-sm danger';
+        rejectBtn.textContent = 'رد';
+        rejectBtn.addEventListener('click', async () => {
+          if (!confirm('آیا از رد این شاگرد مطمئن هستید؟')) return;
+          try {
+            await DB.rejectStudent(s.id);
+            await renderStudents();
+            await renderPendingStudents();
+            refreshSelects();
+          } catch (err) {
+            console.error(err);
+            alert(err.message || 'خطا در رد شاگرد');
+          }
+        });
+        actionsBox?.appendChild(rejectBtn);
       }
       el.querySelector('[data-edit-student]')?.addEventListener('click', async () => {
         const newName = prompt('نام جدید:', s.name);
@@ -380,24 +404,6 @@ async function initCoach() {
           alert('حذف شاگرد انجام نشد.');
         }
       });
-      el.querySelector('[data-verify-student]')?.addEventListener('click', async () => {
-        try {
-          await DB.markStudentVerified(s.id);
-          await renderStudents();
-        } catch (err) {
-          console.error(err);
-          alert('خطا در تایید ایمیل شاگرد');
-        }
-      });
-      el.querySelector('[data-verify-phone]')?.addEventListener('click', async () => {
-        try {
-          await DB.markStudentPhoneVerified(s.id);
-          await renderStudents();
-        } catch (err) {
-          console.error(err);
-          alert('خطا در تایید موبایل شاگرد');
-        }
-      });
     });
   }
 
@@ -405,12 +411,25 @@ async function initCoach() {
     if (!pendingStudentList) return;
     pendingStudentList.innerHTML = '<div class="muted">در حال بارگذاری...</div>';
     try {
-      const pending = await DB.listPendingStudents();
-      if (!pending.length) {
-        pendingStudentList.innerHTML = '<div class="muted">درخواستی در انتظار تایید نیست</div>';
+      const students = DB.listStudents();
+      const pending = students.filter(s => s.status === 'pending');
+      const rejected = students.filter(s => s.status === 'rejected');
+      const total = pending.length + rejected.length;
+      if (pendingStudentCount) pendingStudentCount.textContent = String(total);
+      if (!total) {
+        pendingStudentList.innerHTML = '<div class="muted">همه شاگردها تایید شده‌اند.</div>';
         return;
       }
       pendingStudentList.innerHTML = '';
+
+      const appendGroupTitle = (title) => {
+        const titleEl = document.createElement('div');
+        titleEl.className = 'pending-group-title muted';
+        titleEl.textContent = title;
+        pendingStudentList.appendChild(titleEl);
+      };
+
+      if (pending.length) appendGroupTitle('در انتظار تایید');
       pending.forEach(s => {
         const el = document.createElement('div'); el.className = 'item';
         const emailLabel = s.email ? escapeHtml(s.email) : '—';
@@ -453,9 +472,42 @@ async function initCoach() {
           }
         });
       });
+      if (rejected.length) appendGroupTitle('رد شده');
+      rejected.forEach(s => {
+        const el = document.createElement('div'); el.className = 'item';
+        const emailLabel = s.email ? escapeHtml(s.email) : '—';
+        const phoneLabel = s.phone ? escapeHtml(s.phone) : '—';
+        const createdLabel = formatJalaliDate(s.createdAt || new Date().toISOString());
+        el.innerHTML = `
+          <div class="row-between">
+            <div>
+              <strong>${escapeHtml(s.name)}</strong>
+              <div class="muted">ایمیل: ${emailLabel}</div>
+              <div class="muted">موبایل: ${phoneLabel}</div>
+              <div class="muted">تاریخ ثبت‌نام: ${escapeHtml(createdLabel)}</div>
+              <div class="chips" style="margin-top:6px"><span class="chip danger">رد شده</span></div>
+            </div>
+            <div class="actions">
+              <button class="btn-sm success" data-approve="${s.id}">تایید مجدد</button>
+            </div>
+          </div>`;
+        pendingStudentList.appendChild(el);
+        el.querySelector('[data-approve]')?.addEventListener('click', async () => {
+          try {
+            await DB.approveStudent(s.id);
+            await renderPendingStudents();
+            await renderStudents();
+            refreshSelects();
+          } catch (err) {
+            console.error(err);
+            alert(err.message || 'خطا در تایید شاگرد');
+          }
+        });
+      });
     } catch (err) {
       console.error(err);
       pendingStudentList.innerHTML = '<div class="danger">خطا در دریافت درخواست‌ها</div>';
+      if (pendingStudentCount) pendingStudentCount.textContent = '0';
     }
   }
 

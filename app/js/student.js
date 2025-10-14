@@ -6,20 +6,28 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('DB init failed', err);
     }
 
+  const authTabs = document.querySelectorAll('[data-auth]');
+  const authViews = document.querySelectorAll('[data-auth-view]');
   const loginForm = document.getElementById('loginForm');
   const loginEmail = document.getElementById('loginEmail');
-  const loginPhone = document.getElementById('loginPhone');
+  const loginPassword = document.getElementById('loginPassword');
   const rememberMe = document.getElementById('rememberMe');
-  const loginMsg = document.getElementById('loginMsg');
+  const registerForm = document.getElementById('registerForm');
+  const registerName = document.getElementById('registerName');
+  const registerEmail = document.getElementById('registerEmail');
+  const registerPassword = document.getElementById('registerPassword');
+  const registerPasswordConfirm = document.getElementById('registerPasswordConfirm');
+  const forgotRequestForm = document.getElementById('forgotRequestForm');
+  const forgotEmail = document.getElementById('forgotEmail');
+  const forgotResetForm = document.getElementById('forgotResetForm');
+  const forgotResetEmail = document.getElementById('forgotResetEmail');
+  const forgotTokenInput = document.getElementById('forgotToken');
+  const forgotNewPassword = document.getElementById('forgotNewPassword');
   const appArea = document.getElementById('appArea');
   const studentPrograms = document.getElementById('studentPrograms');
-  // Verify
-  const verifyArea = document.getElementById('verifyArea');
-  const sendCodeBtn = document.getElementById('sendCode');
-  const verifyCodeInput = document.getElementById('verifyCode');
-  const confirmCodeBtn = document.getElementById('confirmCode');
-  const verifyMsg = document.getElementById('verifyMsg');
-  const verifyInstruction = document.getElementById('verifyInstruction');
+  const authModal = document.getElementById('authModal');
+  const authModalMsg = document.getElementById('authModalMsg');
+  const authModalClose = document.getElementById('authModalClose');
 
   // Sidebar panels
   const sideLinks = document.querySelectorAll('.side-link');
@@ -120,13 +128,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentStudent = null;
   let currentJYear = null;
-  let currentLoginMethod = null; // 'email' | 'phone'
+  const AUTH_DEFAULT = 'login';
 
-  function normalizePhone(phone) {
-    if (!phone) return null;
-    const digits = String(phone).replace(/\D+/g, '');
-    return digits || null;
+  function showModal(message, variant = 'info') {
+    if (!authModal || !authModalMsg) return;
+    authModalMsg.textContent = message || '';
+    authModal.dataset.variant = variant;
+    authModal.hidden = false;
+    authModal.classList.add('open');
   }
+
+  function hideModal() {
+    if (!authModal) return;
+    authModal.classList.remove('open');
+    authModal.hidden = true;
+    authModal.dataset.variant = 'info';
+  }
+
+  authModalClose?.addEventListener('click', hideModal);
+  authModal?.addEventListener('click', (e) => {
+    if (e.target === authModal) hideModal();
+  });
+
+  function switchAuth(tab) {
+    authTabs.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.auth === tab);
+    });
+    authViews.forEach(view => {
+      view.hidden = view.dataset.authView !== tab;
+    });
+    hideModal();
+  }
+
+  authTabs.forEach(btn => {
+    btn.addEventListener('click', () => switchAuth(btn.dataset.auth));
+  });
+  if (authTabs.length) switchAuth(AUTH_DEFAULT);
 
   function enterApp() {
     if (appArea) appArea.style.display = '';
@@ -136,41 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showLoginView() {
     if (appArea) appArea.style.display = 'none';
     if (loginSection) loginSection.style.display = '';
-  }
-
-  function hideVerifyArea() {
-    if (verifyArea) verifyArea.style.display = 'none';
-    if (verifyMsg) verifyMsg.textContent = '';
-    if (verifyCodeInput) verifyCodeInput.value = '';
-  }
-
-  function showVerifyArea(method) {
-    currentLoginMethod = method;
-    if (!verifyArea) return;
-    verifyArea.style.display = '';
-    if (verifyInstruction) {
-      verifyInstruction.textContent = method === 'phone'
-        ? 'شماره موبایل شما تایید نشده است. لطفاً کد ارسال‌شده را وارد کنید.'
-        : 'ایمیل شما تایید نشده است. لطفاً کد ارسال‌شده را وارد کنید.';
-    }
-    if (verifyMsg) verifyMsg.textContent = '';
-    if (verifyCodeInput) verifyCodeInput.value = '';
-  }
-
-  async function sendVerificationCode(auto = false) {
-    if (!currentStudent || !currentLoginMethod) return;
-    try {
-      if (currentLoginMethod === 'email') {
-        const res = await DB.startEmailVerification(currentStudent.id);
-        if (verifyMsg) verifyMsg.textContent = `کد تایید ایمیل ارسال شد. (برای تست: ${res.code || '******'})`;
-      } else {
-        const res = await DB.startPhoneVerification(currentStudent.id);
-        if (verifyMsg) verifyMsg.textContent = `کد تایید پیامک ارسال شد. (برای تست: ${res.code || '******'})`;
-      }
-    } catch (err) {
-      console.error(err);
-      if (!auto && verifyMsg) verifyMsg.textContent = err.message || 'خطا در ارسال کد. لطفاً دوباره تلاش کنید.';
-    }
+    switchAuth('login');
   }
 
   async function finalizeLogin() {
@@ -181,32 +184,26 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('Failed to refresh student', err);
     }
-    hideVerifyArea();
-    loginMsg.textContent = `خوش آمدید ${currentStudent.name}`;
+    showModal(`${currentStudent.name} عزیز خوش آمدید!`, 'success');
     enterApp();
     await loadStudentWorkspace();
   }
 
   function handleLogout() {
     currentStudent = null;
-    currentLoginMethod = null;
     currentJYear = null;
-    hideVerifyArea();
     showLoginView();
-    loginMsg.textContent = '';
     if (loginForm) {
       loginForm.reset();
       const remember = isRememberOn();
       if (rememberMe) rememberMe.checked = remember;
       if (remember) {
         const savedEmail = getRememberedEmail();
-        const savedPhone = getRememberedPhone();
         if (loginEmail) loginEmail.value = savedEmail || '';
-        if (loginPhone) loginPhone.value = savedEmail ? '' : (savedPhone || '');
-      } else {
-        if (loginEmail) loginEmail.value = '';
-        if (loginPhone) loginPhone.value = '';
+      } else if (loginEmail) {
+        loginEmail.value = '';
       }
+      if (loginPassword) loginPassword.value = '';
     }
     if (studentPrograms) studentPrograms.innerHTML = '';
     if (paymentList) paymentList.innerHTML = '';
@@ -215,77 +212,116 @@ document.addEventListener('DOMContentLoaded', () => {
     if (coachLogList) coachLogList.innerHTML = '';
   }
 
-  loginForm.addEventListener('submit', async (e) => {
+  loginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    loginMsg.textContent = '';
-    hideVerifyArea();
+    hideModal();
 
-    const email = (loginEmail?.value || '').trim();
-    const phoneRaw = (loginPhone?.value || '').trim();
-    const phoneNorm = normalizePhone(phoneRaw);
+    const email = (loginEmail?.value || '').trim().toLowerCase();
+    const password = (loginPassword?.value || '').trim();
 
-    if (!email && !phoneNorm) {
-      loginMsg.textContent = 'لطفاً ایمیل یا شماره موبایل را وارد کنید.';
+    if (!email || !password) {
+      showModal('ایمیل و رمز عبور را وارد کنید.', 'danger');
       return;
     }
 
     try {
-      if (email) {
-        let student = DB.getStudentByEmail(email);
-        if (!student) {
-          loginMsg.textContent = 'شاگردی با این ایمیل یافت نشد. از مربی بخواهید شما را اضافه کند.';
-          currentStudent = null;
-          return;
-        }
-        currentStudent = await DB.refreshStudent(student.id) || student;
-        currentLoginMethod = 'email';
-        if (rememberMe?.checked) {
-          setRemember(email, true);
-          setRememberPhone('', false);
-        } else {
-          setRemember(email, false);
-          setRememberPhone('', false);
-        }
-        if (currentStudent.verifiedAt) {
-          await finalizeLogin();
-        } else {
-          loginMsg.textContent = `${currentStudent.name} عزیز، لطفاً ایمیل خود را تایید کنید.`;
-          showVerifyArea('email');
-          await sendVerificationCode(true);
-        }
-      } else {
-        let student = DB.getStudentByPhone(phoneNorm);
-        if (!student) {
-          try {
-            student = await API.getStudentByPhone(phoneNorm);
-            if (student) await DB.refreshStudent(student.id);
-          } catch {}
-        }
-        if (!student) {
-          loginMsg.textContent = 'شاگردی با این شماره موبایل یافت نشد. از مربی بخواهید شما را اضافه کند.';
-          currentStudent = null;
-          return;
-        }
-        currentStudent = await DB.refreshStudent(student.id) || student;
-        currentLoginMethod = 'phone';
-        if (rememberMe?.checked) {
-          setRemember('', false);
-          setRememberPhone(phoneRaw, true);
-        } else {
-          setRemember('', false);
-          setRememberPhone('', false);
-        }
-        if (currentStudent.phoneVerifiedAt) {
-          await finalizeLogin();
-        } else {
-          loginMsg.textContent = `${currentStudent.name} عزیز، لطفاً موبایل خود را تایید کنید.`;
-          showVerifyArea('phone');
-          await sendVerificationCode(true);
-        }
+      const result = await DB.loginStudent({ email, password });
+      const student = result?.student;
+      if (!student) {
+        showModal('ورود ناموفق بود.', 'danger');
+        return;
       }
+      currentStudent = student;
+      if (rememberMe?.checked) {
+        setRemember(email, true);
+      } else {
+        setRemember('', false);
+      }
+      await finalizeLogin();
     } catch (err) {
       console.error(err);
-      loginMsg.textContent = err.message || 'خطا در ورود';
+      showModal(err.message || 'خطا در ورود', 'danger');
+    }
+  });
+
+  registerForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideModal();
+
+    const name = (registerName?.value || '').trim();
+    const email = (registerEmail?.value || '').trim().toLowerCase();
+    const password = (registerPassword?.value || '').trim();
+    const confirm = (registerPasswordConfirm?.value || '').trim();
+
+    if (!email || !password) {
+      showModal('ایمیل و رمز عبور الزامی است.', 'danger');
+      return;
+    }
+    if (password !== confirm) {
+      showModal('تکرار رمز با رمز وارد شده یکسان نیست.', 'danger');
+      return;
+    }
+
+    try {
+      await DB.signupStudent({ name, email, password });
+      if (loginEmail) loginEmail.value = email;
+      if (loginPassword) loginPassword.value = '';
+      switchAuth('login');
+      registerForm?.reset();
+      showModal('ثبت‌نام انجام شد. پس از تایید مربی می‌توانید وارد شوید.', 'info');
+    } catch (err) {
+      console.error(err);
+      showModal(err.message || 'خطا در ثبت‌نام', 'danger');
+    }
+  });
+
+  forgotRequestForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideModal();
+    const email = (forgotEmail?.value || '').trim().toLowerCase();
+    if (!email) {
+      showModal('لطفاً ایمیل خود را وارد کنید.', 'danger');
+      return;
+    }
+    try {
+      const res = await DB.requestPasswordReset(email);
+      let message = 'درخواست بازیابی رمز با موفقیت ثبت شد. در صورت فعال بودن ایمیل، کد بازیابی ارسال می‌شود.';
+      if (res?.token) {
+        message += `\nکد بازیابی (برای تست): ${res.token}`;
+        if (forgotTokenInput) forgotTokenInput.value = res.token;
+        if (forgotResetEmail) forgotResetEmail.value = email;
+      }
+      showModal(message, 'info');
+    } catch (err) {
+      console.error(err);
+      showModal(err.message || 'خطا در ارسال درخواست بازیابی', 'danger');
+    }
+  });
+
+  forgotResetForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideModal();
+
+    const email = (forgotResetEmail?.value || '').trim().toLowerCase();
+    const token = (forgotTokenInput?.value || '').trim();
+    const password = (forgotNewPassword?.value || '').trim();
+
+    if (!email || !token || !password) {
+      showModal('ایمیل، کد و رمز جدید الزامی است.', 'danger');
+      return;
+    }
+
+    try {
+      await DB.confirmPasswordReset({ email, token, password });
+      if (loginEmail) loginEmail.value = email;
+      if (loginPassword) loginPassword.value = '';
+      switchAuth('login');
+      showModal('رمز عبور با موفقیت تغییر کرد. لطفاً وارد شوید.', 'success');
+      forgotRequestForm?.reset();
+      forgotResetForm?.reset();
+    } catch (err) {
+      console.error(err);
+      showModal(err.message || 'خطا در تغییر رمز', 'danger');
     }
   });
 
@@ -316,33 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
     await renderProfile();
       updateHeaderFromProfile();
   }
-
-  sendCodeBtn?.addEventListener('click', async () => {
-    if (!currentStudent || !currentLoginMethod) return;
-    await sendVerificationCode(false);
-  });
-
-  confirmCodeBtn?.addEventListener('click', async () => {
-    if (!currentStudent || !currentLoginMethod) return;
-    const code = (verifyCodeInput.value || '').trim();
-    if (!code) { verifyMsg.textContent = 'کد را وارد کنید'; return; }
-    let ok = false;
-    try {
-      if (currentLoginMethod === 'email') {
-        ok = await DB.verifyStudentEmail(currentStudent.id, code);
-      } else {
-        ok = await DB.verifyStudentPhone(currentStudent.id, code);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-    if (ok) {
-      verifyMsg.textContent = currentLoginMethod === 'email' ? 'ایمیل تایید شد!' : 'موبایل تایید شد!';
-      await finalizeLogin();
-    } else {
-      verifyMsg.textContent = 'کد نامعتبر است یا منقضی شده است.';
-    }
-  });
 
   logoutBtn?.addEventListener('click', handleLogout);
 
@@ -998,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateHeaderFromProfile(){
     if(!currentStudent) return;
-    if (studentNameHdr) studentNameHdr.textContent = currentStudent.name || 'پنل شاگرد';
+    if (studentNameHdr) studentNameHdr.textContent = currentStudent.name || 'پنل شاطران';
     const p = DB.getStudentProfile(currentStudent.id) || {};
     if (studentAvatarHdr){
       if (p.photoDataUrl){ studentAvatarHdr.src = p.photoDataUrl; studentAvatarHdr.style.display=''; }
@@ -1249,8 +1258,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateRememberFlag() {
     const hasEmail = !!(getCookie('csa_last_email') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_email') : ''));
-    const hasPhone = !!(getCookie('csa_last_phone') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_phone') : ''));
-    if (hasEmail || hasPhone) {
+    if (hasEmail) {
       setCookie('csa_remember', '1', 180);
       try { localStorage.setItem('csa_remember', '1'); } catch {}
     } else {
@@ -1259,8 +1267,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function setRemember(email, on){
-    if(on && email){
+  function setRemember(email, on) {
+    if (on && email) {
       setCookie('csa_last_email', email, 180);
       try { localStorage.setItem('csa_last_email', email); } catch {}
     } else {
@@ -1270,44 +1278,25 @@ document.addEventListener('DOMContentLoaded', () => {
     updateRememberFlag();
   }
 
-  function setRememberPhone(phone, on){
-    if(on && phone){
-      setCookie('csa_last_phone', phone, 180);
-      try { localStorage.setItem('csa_last_phone', phone); } catch {}
-    } else {
-      delCookie('csa_last_phone');
-      try { localStorage.removeItem('csa_last_phone'); } catch {}
-    }
-    updateRememberFlag();
+  function getRememberedEmail() {
+    return getCookie('csa_last_email') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_email') : '') || '';
   }
 
-  function getRememberedEmail(){
-    return getCookie('csa_last_email') || (typeof localStorage!=='undefined' ? localStorage.getItem('csa_last_email') : '') || '';
-  }
-  function getRememberedPhone(){
-    return getCookie('csa_last_phone') || (typeof localStorage!=='undefined' ? localStorage.getItem('csa_last_phone') : '') || '';
-  }
-  function isRememberOn(){
+  function isRememberOn() {
     const c = getCookie('csa_remember');
-    const l = (typeof localStorage!=='undefined' ? localStorage.getItem('csa_remember') : null);
+    const l = (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_remember') : null);
     return c === '1' || l === '1';
   }
 
   // Auto-fill and optional auto-login
-  (function initRemember(){
+  (function initRemember() {
     const lastEmail = getRememberedEmail();
-    const lastPhone = getRememberedPhone();
-    if(lastEmail && loginEmail){ loginEmail.value = lastEmail; }
-    if(lastPhone && loginPhone){ loginPhone.value = lastPhone; }
-    if(rememberMe) rememberMe.checked = isRememberOn();
-    if(isRememberOn()){
-      const hasEmail = !!lastEmail;
-      const hasPhone = !hasEmail && !!lastPhone;
-      if (hasEmail && loginEmail) {
-        setTimeout(()=>{ try { loginForm?.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true })); } catch{} }, 0);
-      } else if (hasPhone && loginPhone) {
-        setTimeout(()=>{ try { loginForm?.dispatchEvent(new Event('submit', { cancelable:true, bubbles:true })); } catch{} }, 0);
-      }
+    if (lastEmail && loginEmail) loginEmail.value = lastEmail;
+    if (rememberMe) rememberMe.checked = isRememberOn();
+    if (isRememberOn() && lastEmail && loginForm) {
+      setTimeout(() => {
+        try { loginForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); } catch {}
+      }, 0);
     }
   })();
 
