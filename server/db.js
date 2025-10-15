@@ -661,7 +661,7 @@ function resetStudentPasswordWithToken({ email, token, password }) {
 }
 
 function listPendingStudents() {
-  const rows = db.prepare('SELECT * FROM students WHERE status = "pending" ORDER BY created_at DESC').all();
+  const rows = db.prepare("SELECT * FROM students WHERE status = 'pending' ORDER BY created_at DESC").all();
   return rows.map(rowToStudent);
 }
 
@@ -682,7 +682,7 @@ function deleteStudent(id) {
     db.prepare('DELETE FROM comments WHERE log_id IN (SELECT id FROM logs WHERE student_id = ?)').run(id);
     db.prepare('DELETE FROM logs WHERE student_id = ?').run(id);
     db.prepare('DELETE FROM payments WHERE student_id = ?').run(id);
-    db.prepare('DELETE FROM assignments WHERE target_type = "student" AND target_id = ?').run(id);
+    db.prepare("DELETE FROM assignments WHERE target_type = 'student' AND target_id = ?").run(id);
     db.prepare('DELETE FROM goals WHERE student_id = ?').run(id);
     db.prepare('DELETE FROM students WHERE id = ?').run(id);
   });
@@ -859,7 +859,7 @@ function updateGroup(id, patch) {
 function deleteGroup(id) {
   const transaction = db.transaction(() => {
     db.prepare('UPDATE students SET group_id = NULL WHERE group_id = ?').run(id);
-    db.prepare('DELETE FROM assignments WHERE target_type = "group" AND target_id = ?').run(id);
+    db.prepare("DELETE FROM assignments WHERE target_type = 'group' AND target_id = ?").run(id);
     db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   });
   transaction();
@@ -883,10 +883,10 @@ function listAssignments() {
 function listAssignmentsForStudent(studentId) {
   const student = getStudent(studentId);
   if (!student) return [];
-  const direct = db.prepare('SELECT * FROM assignments WHERE target_type = "student" AND target_id = ?').all(studentId);
+  const direct = db.prepare("SELECT * FROM assignments WHERE target_type = 'student' AND target_id = ?").all(studentId);
   let groupAssignments = [];
   if (student.groupId) {
-    groupAssignments = db.prepare('SELECT * FROM assignments WHERE target_type = "group" AND target_id = ?').all(student.groupId);
+    groupAssignments = db.prepare("SELECT * FROM assignments WHERE target_type = 'group' AND target_id = ?").all(student.groupId);
   }
   return [...direct, ...groupAssignments].map(a => ({
     id: a.id,

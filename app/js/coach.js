@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   initCoach().catch(err => {
     console.error('Coach panel init failed', err);
-    alert('خطا در بارگذاری داده‌ها. لطفاً صفحه را دوباره باز کنید.');
+    showToast('خطا در بارگذاری داده‌ها. لطفاً صفحه را دوباره باز کنید.', 'danger');
   });
 });
 
@@ -28,7 +28,7 @@ async function initCoach() {
     await (window.DB?.ready || Promise.resolve());
   } catch (err) {
     console.error('DB init failed', err);
-    alert('اتصال به سرور برقرار نشد.');
+    showToast('اتصال به سرور برقرار نشد.', 'danger');
     throw err;
   }
 
@@ -50,6 +50,23 @@ async function initCoach() {
   const groupName = document.getElementById('groupName');
   const groupList = document.getElementById('groupList');
 
+  const groupingCreateForm = document.getElementById('groupingCreateForm');
+  const groupingCreateName = document.getElementById('groupingCreateName');
+  const groupingGroupList = document.getElementById('groupingGroupList');
+  const groupingClearSelection = document.getElementById('groupingClearSelection');
+  const groupingDetails = document.getElementById('groupingDetails');
+  const groupingSelectedName = document.getElementById('groupingSelectedName');
+  const groupingRenameBtn = document.getElementById('groupingRenameBtn');
+  const groupingDeleteBtn = document.getElementById('groupingDeleteBtn');
+  const groupingMemberList = document.getElementById('groupingMemberList');
+  const groupingSearchInput = document.getElementById('groupingSearchInput');
+  const groupingCandidateList = document.getElementById('groupingCandidateList');
+  const groupingAssignForm = document.getElementById('groupingAssignForm');
+  const groupingAssignProgram = document.getElementById('groupingAssignProgram');
+  const groupingAssignStart = document.getElementById('groupingAssignStart');
+  const groupingAssignDuration = document.getElementById('groupingAssignDuration');
+  const groupingAssignmentsList = document.getElementById('groupingAssignmentsList');
+
   const studentForm = document.getElementById('studentForm');
   const studentName = document.getElementById('studentName');
   const studentEmail = document.getElementById('studentEmail');
@@ -63,17 +80,19 @@ async function initCoach() {
 
   const assignGroupForm = document.getElementById('assignGroupForm');
   const assignProgramForGroup = document.getElementById('assignProgramForGroup');
-  const assignTargetGroup = document.getElementById('assignTargetGroup');
   const assignGroupStartISO = document.getElementById('assignGroupStartISO');
   const assignGroupDuration = document.getElementById('assignGroupDuration');
+  const assignGroupTargets = document.getElementById('assignGroupTargets');
 
   const assignStudentForm = document.getElementById('assignStudentForm');
   const assignProgramForStudent = document.getElementById('assignProgramForStudent');
-  const assignTargetStudent = document.getElementById('assignTargetStudent');
   const assignStudentStartISO = document.getElementById('assignStudentStartISO');
   const assignStudentDuration = document.getElementById('assignStudentDuration');
+  const assignStudentTargets = document.getElementById('assignStudentTargets');
 
   const assignmentList = document.getElementById('assignmentList');
+  const assignTabButtons = document.querySelectorAll('[data-assign-target]');
+  const assignViews = document.querySelectorAll('[data-assign-view]');
   const seedDemoBtn = document.getElementById('seedDemo');
 
   // Payments (coach view)
@@ -99,12 +118,134 @@ async function initCoach() {
   const goalFilterStudent = document.getElementById('goalFilterStudent');
   const coachGoalList = document.getElementById('coachGoalList');
 
+  const coachDialog = document.getElementById('coachDialog');
+  const coachDialogTitle = document.getElementById('coachDialogTitle');
+  const coachDialogBody = document.getElementById('coachDialogBody');
+  const coachDialogConfirm = document.getElementById('coachDialogConfirm');
+  const coachDialogCancel = document.getElementById('coachDialogCancel');
+  const coachDialogClose = document.getElementById('coachDialogClose');
+  const coachToast = document.getElementById('coachToast');
+
   // Sidebar nav
   const sideLinks = document.querySelectorAll('.side-link');
   const panels = document.querySelectorAll('.panel');
 
   const runAsync = (fn) => (...args) => Promise.resolve(fn(...args)).catch(err => console.error(err));
   let appInitialized = false;
+  let groupingSelectedGroupId = null;
+  let dialogResolver = null;
+  let dialogSubmit = null;
+  let toastTimer = null;
+
+  if (groupingSearchInput) groupingSearchInput.disabled = true;
+
+  function closeDialog(result = false) {
+    if (!coachDialog) return;
+    coachDialog.classList.remove('open');
+    setTimeout(() => {
+      if (coachDialog) coachDialog.hidden = true;
+    }, 150);
+    document.body.classList.remove('dialog-open');
+    if (coachDialogConfirm) coachDialogConfirm.classList.remove('danger');
+    const resolver = dialogResolver;
+    dialogResolver = null;
+    dialogSubmit = null;
+    if (typeof resolver === 'function') resolver(result);
+  }
+
+  function openDialog({ title = '', render, confirmText = 'تایید', cancelText = 'انصراف', confirmVariant = 'primary', onSubmit }) {
+    if (!coachDialog) return Promise.resolve(false);
+    coachDialogTitle.textContent = title;
+    coachDialogBody.innerHTML = '';
+    let content = typeof render === 'function' ? render() : render;
+    if (typeof content === 'string') {
+      coachDialogBody.innerHTML = content;
+    } else if (content instanceof Node) {
+      coachDialogBody.appendChild(content);
+    }
+    if (coachDialogConfirm) {
+      coachDialogConfirm.textContent = confirmText || 'تایید';
+      coachDialogConfirm.classList.toggle('danger', confirmVariant === 'danger');
+    }
+    if (coachDialogCancel) {
+      if (cancelText === null) {
+        coachDialogCancel.hidden = true;
+      } else {
+        coachDialogCancel.hidden = false;
+        coachDialogCancel.textContent = cancelText || 'انصراف';
+      }
+    }
+    dialogSubmit = onSubmit;
+    dialogResolver = null;
+    coachDialog.hidden = false;
+    requestAnimationFrame(() => coachDialog.classList.add('open'));
+    document.body.classList.add('dialog-open');
+    return new Promise(resolve => {
+      dialogResolver = resolve;
+    });
+  }
+
+  function showToast(message, variant = 'info') {
+    if (!coachToast) {
+      console.log(message);
+      return;
+    }
+    coachToast.textContent = message;
+    coachToast.dataset.variant = variant;
+    coachToast.hidden = false;
+    coachToast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      coachToast.classList.remove('show');
+      toastTimer = setTimeout(() => {
+        coachToast.hidden = true;
+      }, 250);
+    }, 3200);
+  }
+
+  coachDialogConfirm?.addEventListener('click', async () => {
+    if (!dialogResolver) return;
+    try {
+      const result = dialogSubmit ? await dialogSubmit() : true;
+      if (result === false) return;
+      closeDialog(true);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'خطای ناشناخته', 'danger');
+    }
+  });
+  const cancelDialog = () => {
+    if (!dialogResolver) return;
+    closeDialog(false);
+  };
+  coachDialogCancel?.addEventListener('click', cancelDialog);
+  coachDialogClose?.addEventListener('click', cancelDialog);
+  coachDialog?.addEventListener('click', (evt) => {
+    if (evt.target === coachDialog && dialogResolver) {
+      cancelDialog();
+    }
+  });
+  document.addEventListener('keydown', (evt) => {
+    if (evt.key === 'Escape' && dialogResolver) {
+      cancelDialog();
+    }
+  });
+
+  function switchAssignTab(target) {
+    assignTabButtons.forEach(btn => {
+      const isActive = btn.dataset.assignTarget === target;
+      btn.classList.toggle('active', isActive);
+      if (isActive) {
+        btn.setAttribute('aria-current', 'true');
+      } else {
+        btn.removeAttribute('aria-current');
+      }
+    });
+    assignViews.forEach(view => {
+      const match = view.dataset.assignView === target;
+      view.hidden = !match;
+    });
+  }
 
   function persistCoachToken(token) {
     coachToken = token || '';
@@ -136,7 +277,7 @@ async function initCoach() {
       await loadAllData();
     } catch (err) {
       console.error('Failed to load coach data', err);
-      alert('بارگذاری داده‌ها ناموفق بود. دوباره وارد شوید.');
+      showToast('بارگذاری داده‌ها ناموفق بود. دوباره وارد شوید.', 'danger');
       persistCoachToken('');
       coachProfile = null;
       showLoginView('لطفاً دوباره وارد شوید.');
@@ -150,9 +291,16 @@ async function initCoach() {
     const groups = DB.listGroups();
     const students = DB.listStudents();
 
-    // clear
-    [assignProgramForGroup, assignProgramForStudent, assignTargetGroup, assignTargetStudent, studentGroup]
-      .forEach(sel => sel.innerHTML = '');
+    const prevStudentGroupValue = studentGroup ? studentGroup.value : '';
+    const prevGroupTargets = assignGroupTargets
+      ? new Set(Array.from(assignGroupTargets.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value))
+      : new Set();
+    const prevStudentTargets = assignStudentTargets
+      ? new Set(Array.from(assignStudentTargets.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value))
+      : new Set();
+
+    [assignProgramForGroup, assignProgramForStudent, studentGroup]
+      .forEach(sel => { if (sel) sel.innerHTML = ''; });
 
     // programs
     programs.forEach(p => {
@@ -161,16 +309,66 @@ async function initCoach() {
     });
 
     // groups
+    if (studentGroup) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'یک گروه را انتخاب کنید';
+      placeholder.disabled = true;
+      if (!prevStudentGroupValue) placeholder.selected = true;
+      studentGroup.appendChild(placeholder);
+    }
+
     groups.forEach(g => {
-      const og1 = document.createElement('option'); og1.value = g.id; og1.textContent = g.name; assignTargetGroup.appendChild(og1);
-      const og2 = document.createElement('option'); og2.value = g.id; og2.textContent = g.name; studentGroup.appendChild(og2);
+      const og2 = document.createElement('option');
+      og2.value = g.id;
+      og2.textContent = g.name;
+      if (prevStudentGroupValue && prevStudentGroupValue === g.id) og2.selected = true;
+      studentGroup.appendChild(og2);
     });
 
-    // students
-    students.forEach(s => {
-      const contact = s.email || s.phone || 'بدون اطلاعات تماس';
-      const os = document.createElement('option'); os.value = s.id; os.textContent = `${s.name} (${contact})`; assignTargetStudent.appendChild(os);
-    });
+    if (assignGroupTargets) {
+      assignGroupTargets.innerHTML = groups.length ? '' : '<div class="muted">گروهی وجود ندارد.</div>';
+      groups.forEach(g => {
+        const label = document.createElement('label');
+        label.className = 'assign-check-item';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = g.id;
+        checkbox.checked = prevGroupTargets.has(g.id);
+        const textWrap = document.createElement('div');
+        textWrap.className = 'assign-check-text';
+        const title = document.createElement('span');
+        title.textContent = g.name;
+        const info = document.createElement('small');
+        const count = g.studentIds.length;
+        info.textContent = count ? `${count} شاگرد` : 'بدون شاگرد';
+        textWrap.append(title, info);
+        label.append(checkbox, textWrap);
+        assignGroupTargets.appendChild(label);
+      });
+    }
+
+    if (assignStudentTargets) {
+      assignStudentTargets.innerHTML = students.length ? '' : '<div class="muted">شاگردی وجود ندارد.</div>';
+      students.forEach(s => {
+        const label = document.createElement('label');
+        label.className = 'assign-check-item';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = s.id;
+        checkbox.checked = prevStudentTargets.has(s.id);
+        const textWrap = document.createElement('div');
+        textWrap.className = 'assign-check-text';
+        const title = document.createElement('span');
+        title.textContent = s.name;
+        const info = document.createElement('small');
+        const contact = s.email || s.phone || 'بدون اطلاعات تماس';
+        info.textContent = contact;
+        textWrap.append(title, info);
+        label.append(checkbox, textWrap);
+        assignStudentTargets.appendChild(label);
+      });
+    }
 
     // payment filter students (+ All)
     if (paymentFilterStudent) {
@@ -214,6 +412,7 @@ async function initCoach() {
         goalFilterStudent.appendChild(o);
       });
     }
+    updateGroupingUI();
   }
 
   async function renderPrograms() {
@@ -235,32 +434,371 @@ async function initCoach() {
         </div>
         ${chips}`;
       programList.appendChild(el);
-      el.querySelector('[data-edit-program]')?.addEventListener('click', async () => {
-        const newTitle = prompt('عنوان جدید برنامه:', p.title);
-        if (newTitle == null) return;
-        const newDesc = prompt('توضیحات جدید (اختیاری):', p.description || '');
-        try {
-          await DB.updateProgram(p.id, { title: newTitle.trim() || p.title, description: (newDesc ?? '').trim() });
-          await renderPrograms();
-          refreshSelects();
-        } catch (err) {
-          console.error(err);
-          alert('به‌روزرسانی برنامه ناموفق بود.');
-        }
+      el.querySelector('[data-edit-program]')?.addEventListener('click', () => {
+        const container = document.createElement('div');
+        container.className = 'dialog-field';
+        const labelTitle = document.createElement('label');
+        labelTitle.textContent = 'عنوان برنامه';
+        const inputTitle = document.createElement('input');
+        inputTitle.type = 'text';
+        inputTitle.value = p.title;
+        inputTitle.className = 'dialog-input';
+        labelTitle.appendChild(inputTitle);
+        const labelDesc = document.createElement('label');
+        labelDesc.textContent = 'توضیحات (اختیاری)';
+        const textareaDesc = document.createElement('textarea');
+        textareaDesc.className = 'dialog-textarea';
+        textareaDesc.rows = 4;
+        textareaDesc.value = p.description || '';
+        labelDesc.appendChild(textareaDesc);
+        container.append(labelTitle, labelDesc);
+        openDialog({
+          title: 'ویرایش برنامه',
+          render: () => container,
+          confirmText: 'ذخیره',
+          onSubmit: async () => {
+            const title = inputTitle.value.trim();
+            if (!title) {
+              inputTitle.classList.add('invalid');
+              inputTitle.focus();
+              return false;
+            }
+            await DB.updateProgram(p.id, { title, description: textareaDesc.value.trim() });
+            showToast('برنامه بروزرسانی شد.', 'success');
+            await renderPrograms();
+            refreshSelects();
+            return true;
+          },
+        });
+        setTimeout(() => inputTitle.focus(), 50);
       });
-      el.querySelector('[data-del-program]')?.addEventListener('click', async () => {
-        if (!confirm('حذف برنامه؟ انتساب‌های مرتبط نیز حذف می‌شوند.')) return;
-        try {
-          await DB.deleteProgram(p.id);
-          await renderPrograms();
-          await renderAssignments();
-          refreshSelects();
-        } catch (err) {
-          console.error(err);
-          alert('حذف برنامه انجام نشد.');
-        }
+      el.querySelector('[data-del-program]')?.addEventListener('click', () => {
+        const body = document.createElement('p');
+        body.innerHTML = `برنامه <strong>${escapeHtml(p.title)}</strong> حذف شود؟<br/><span class="muted">انتساب‌های مرتبط با این برنامه نیز حذف می‌شوند.</span>`;
+        openDialog({
+          title: 'حذف برنامه',
+          render: () => body,
+          confirmText: 'حذف برنامه',
+          confirmVariant: 'danger',
+          onSubmit: async () => {
+            await DB.deleteProgram(p.id);
+            showToast('برنامه حذف شد.', 'success');
+            await renderPrograms();
+            await renderAssignments();
+            refreshSelects();
+            return true;
+          },
+        });
       });
     });
+  }
+
+  function updateGroupingUI() {
+    if (!groupingGroupList) return;
+    const groups = DB.listGroups();
+    const students = DB.listStudents().filter(s => !s.status || s.status === 'approved');
+    const programs = DB.listPrograms();
+    const assignments = DB.listAssignments();
+
+    if (groupingSelectedGroupId && !groups.some(g => g.id === groupingSelectedGroupId)) {
+      groupingSelectedGroupId = groups[0]?.id || null;
+    }
+
+    groupingGroupList.innerHTML = '';
+    if (!groups.length) {
+      groupingGroupList.innerHTML = '<div class="muted">هنوز گروهی ساخته نشده است.</div>';
+    } else {
+      groups.forEach(g => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const memberCount = g.studentIds.length;
+        const countLabel = memberCount ? `${memberCount} شاگرد` : 'بدون شاگرد';
+        btn.className = `grouping-group-item${g.id === groupingSelectedGroupId ? ' active' : ''}`;
+        btn.dataset.groupId = g.id;
+        btn.innerHTML = `<span>${escapeHtml(g.name)}</span><span>${escapeHtml(countLabel)}</span>`;
+        btn.addEventListener('click', () => {
+          groupingSelectedGroupId = g.id;
+          updateGroupingUI();
+        });
+        groupingGroupList.appendChild(btn);
+      });
+    }
+
+    if (groupingClearSelection) {
+      groupingClearSelection.disabled = !groupingSelectedGroupId;
+      groupingClearSelection.onclick = () => {
+        groupingSelectedGroupId = null;
+        updateGroupingUI();
+      };
+    }
+
+    if (!groupingDetails) return;
+    if (!groupingSelectedGroupId) {
+      groupingDetails.hidden = true;
+      if (groupingSearchInput) {
+        groupingSearchInput.value = '';
+        groupingSearchInput.disabled = true;
+      }
+      if (groupingCandidateList) {
+        groupingCandidateList.innerHTML = '<div class="muted">برای افزودن شاگرد، ابتدا یک گروه را انتخاب کنید.</div>';
+      }
+      return;
+    }
+
+    const selected = groups.find(g => g.id === groupingSelectedGroupId);
+    if (!selected) {
+      groupingDetails.hidden = true;
+      return;
+    }
+    groupingDetails.hidden = false;
+    if (groupingSelectedName) groupingSelectedName.textContent = selected.name;
+    if (groupingSearchInput) groupingSearchInput.disabled = false;
+
+    if (groupingRenameBtn) {
+      groupingRenameBtn.onclick = () => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dialog-field';
+        const label = document.createElement('label');
+        label.textContent = 'نام جدید گروه';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = selected.name;
+        input.className = 'dialog-input';
+        label.appendChild(input);
+        wrapper.appendChild(label);
+        openDialog({
+          title: 'ویرایش نام گروه',
+          render: () => wrapper,
+          confirmText: 'ذخیره',
+          onSubmit: async () => {
+            const nextName = input.value.trim();
+            if (!nextName) {
+              input.classList.add('invalid');
+              input.focus();
+              return false;
+            }
+            await DB.updateGroup(selected.id, { name: nextName });
+            showToast('نام گروه به‌روزرسانی شد.', 'success');
+            await renderGroups();
+            refreshSelects();
+            return true;
+          },
+        });
+        setTimeout(() => input.focus(), 50);
+      };
+    }
+
+    if (groupingDeleteBtn) {
+      groupingDeleteBtn.onclick = () => {
+        const body = document.createElement('div');
+        body.innerHTML = `<p>گروه <strong>${escapeHtml(selected.name)}</strong> حذف شود؟</p><p class="muted">تمام انتساب‌های مربوط به این گروه نیز حذف می‌شود.</p>`;
+        openDialog({
+          title: 'حذف گروه',
+          render: () => body,
+          confirmText: 'حذف گروه',
+          confirmVariant: 'danger',
+          onSubmit: async () => {
+            await DB.deleteGroup(selected.id);
+            showToast('گروه حذف شد.', 'success');
+            groupingSelectedGroupId = null;
+            await renderGroups();
+            await renderAssignments();
+            await renderStudents();
+            refreshSelects();
+            return true;
+          },
+        });
+      };
+    }
+
+    if (groupingMemberList) {
+      const members = students.filter(s => s.groupId === selected.id);
+      groupingMemberList.innerHTML = members.length ? '' : '<div class="muted">شاگردی در این گروه ثبت نشده است.</div>';
+      members.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'item';
+        const contact = s.email || s.phone || 'بدون اطلاعات تماس';
+        item.innerHTML = `
+          <div class="row-between">
+            <div>
+              <strong>${escapeHtml(s.name)}</strong>
+              <div class="muted">${escapeHtml(contact)}</div>
+            </div>
+            <div class="actions">
+              <button class="btn-sm danger" data-remove="${s.id}">حذف از گروه</button>
+            </div>
+          </div>`;
+        groupingMemberList.appendChild(item);
+        item.querySelector('[data-remove]')?.addEventListener('click', () => {
+          const body = document.createElement('p');
+          body.innerHTML = `شاگرد <strong>${escapeHtml(s.name)}</strong> از گروه <strong>${escapeHtml(selected.name)}</strong> خارج شود؟`;
+          openDialog({
+            title: 'حذف شاگرد از گروه',
+            render: () => body,
+            confirmText: 'خروج از گروه',
+            confirmVariant: 'danger',
+            onSubmit: async () => {
+              await DB.updateStudent(s.id, { groupId: null });
+              showToast('شاگرد از گروه خارج شد.', 'success');
+              await renderStudents();
+              await renderGroups();
+              refreshSelects();
+              return true;
+            },
+          });
+        });
+      });
+    }
+
+    if (groupingCandidateList) {
+      const searchTerm = (groupingSearchInput?.value || '').trim().toLowerCase();
+      const matchesSearch = (student) => {
+        if (!searchTerm) return true;
+        const haystack = [
+          student.name,
+          student.email,
+          student.phone,
+        ].map(v => (v || '').toLowerCase());
+        return haystack.some(v => v.includes(searchTerm));
+      };
+
+      const candidates = students
+        .filter(st => st.id && st.groupId !== selected.id && matchesSearch(st))
+        .sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+
+      groupingCandidateList.innerHTML = candidates.length
+        ? ''
+        : '<div class="muted">شاگردی مطابق جستجو یافت نشد.</div>';
+
+      candidates.forEach(st => {
+        const item = document.createElement('div');
+        item.className = 'item';
+        const contact = st.email || st.phone || 'بدون اطلاعات تماس';
+        const currentGroup = groups.find(g => g.id === st.groupId)?.name || 'بدون گروه';
+        item.innerHTML = `
+          <div class="row-between">
+            <div>
+              <strong>${escapeHtml(st.name)}</strong>
+              <div class="muted">${escapeHtml(contact)}</div>
+              <div class="muted">${escapeHtml(currentGroup === 'بدون گروه' ? 'بدون گروه' : `گروه فعلی: ${currentGroup}`)}</div>
+            </div>
+            <div class="actions">
+              <button class="btn-sm" data-add="${st.id}">افزودن</button>
+            </div>
+          </div>`;
+        groupingCandidateList.appendChild(item);
+        item.querySelector('[data-add]')?.addEventListener('click', async () => {
+          try {
+            await DB.updateStudent(st.id, { groupId: selected.id });
+            showToast('شاگرد به گروه اضافه شد.', 'success');
+            await renderStudents();
+            await renderGroups();
+            refreshSelects();
+          } catch (err) {
+            console.error(err);
+            showToast(err.message || 'خطا در افزودن شاگرد به گروه', 'danger');
+          }
+        });
+      });
+    }
+
+    if (groupingAssignProgram) {
+      const previousValue = groupingAssignProgram.value;
+      groupingAssignProgram.innerHTML = '';
+      if (!programs.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'برنامه‌ای وجود ندارد';
+        groupingAssignProgram.appendChild(opt);
+        groupingAssignProgram.disabled = true;
+      } else {
+        groupingAssignProgram.disabled = false;
+        programs.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.title;
+          groupingAssignProgram.appendChild(opt);
+        });
+        if (previousValue && programs.some(p => p.id === previousValue)) {
+          groupingAssignProgram.value = previousValue;
+        } else if (!programs.some(p => p.id === groupingAssignProgram.value)) {
+          groupingAssignProgram.value = programs[0]?.id || '';
+        }
+      }
+    }
+    if (groupingAssignStart && !groupingAssignStart.value) {
+      groupingAssignStart.value = new Date().toISOString().slice(0, 10);
+    }
+    if (groupingAssignDuration && !groupingAssignDuration.value) {
+      groupingAssignDuration.value = '7';
+    }
+    if (groupingAssignForm) {
+      const assignButton = groupingAssignForm.querySelector('button');
+      if (!programs.length) {
+        if (assignButton) assignButton.disabled = true;
+        groupingAssignForm.onsubmit = (e) => { e.preventDefault(); };
+      } else {
+        if (assignButton) assignButton.disabled = false;
+        groupingAssignForm.onsubmit = async (e) => {
+          e.preventDefault();
+          const programId = groupingAssignProgram?.value;
+          if (!programId) {
+            showToast('لطفاً یک برنامه را انتخاب کنید.', 'warning');
+            return;
+          }
+          const startDate = groupingAssignStart?.value || new Date().toISOString().slice(0, 10);
+          const durationDays = Math.max(1, parseInt(groupingAssignDuration?.value || '7', 10));
+          try {
+            await DB.assignProgramToGroup(programId, selected.id, { startDate, durationDays });
+            await renderAssignments();
+            updateGroupingUI();
+          } catch (err) {
+            console.error(err);
+            showToast(err.message || 'خطا در انتساب برنامه به گروه', 'danger');
+          }
+        };
+      }
+    }
+
+    if (groupingAssignmentsList) {
+      const groupAssignments = assignments.filter(a => a.targetType === 'group' && a.targetId === selected.id);
+      groupingAssignmentsList.innerHTML = groupAssignments.length ? '' : '<div class="muted">برنامه‌ای برای این گروه ثبت نشده است.</div>';
+      groupAssignments.forEach(a => {
+        const program = programs.find(p => p.id === a.programId);
+        const title = program ? program.title : 'برنامه حذف‌شده';
+        const rangeLabel = formatJalaliRange(a.startDate, a.endDate) || 'بدون تاریخ مشخص';
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `
+          <div class="row-between">
+            <div>
+              <strong>${escapeHtml(title)}</strong>
+              <div class="muted">${escapeHtml(rangeLabel)}</div>
+            </div>
+            <div class="actions">
+              <button class="btn-sm danger" data-remove-assignment="${a.id}">حذف</button>
+            </div>
+          </div>`;
+        groupingAssignmentsList.appendChild(item);
+        item.querySelector('[data-remove-assignment]')?.addEventListener('click', () => {
+          const body = document.createElement('p');
+          body.innerHTML = `برنامه <strong>${escapeHtml(title)}</strong> از این گروه حذف شود؟`;
+          openDialog({
+            title: 'حذف برنامه از گروه',
+            render: () => body,
+            confirmText: 'حذف برنامه',
+            confirmVariant: 'danger',
+            onSubmit: async () => {
+              await DB.deleteAssignment(a.id);
+              showToast('برنامه از گروه حذف شد.', 'success');
+              await renderAssignments();
+              updateGroupingUI();
+              return true;
+            },
+          });
+        });
+      });
+    }
   }
 
   async function renderGroups() {
@@ -280,31 +818,58 @@ async function initCoach() {
           </div>
         </div>`;
       groupList.appendChild(el);
-      el.querySelector('[data-rename-group]')?.addEventListener('click', async () => {
-        const name = prompt('نام جدید گروه:', g.name);
-        if (name == null) return;
-        try {
-          await DB.updateGroup(g.id, { name: name.trim() || g.name });
-          await renderGroups();
-          refreshSelects();
-        } catch (err) {
-          console.error(err);
-          alert('ویرایش گروه انجام نشد.');
-        }
+      el.querySelector('[data-rename-group]')?.addEventListener('click', () => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dialog-field';
+        const label = document.createElement('label');
+        label.textContent = 'نام جدید گروه';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = g.name;
+        input.className = 'dialog-input';
+        label.appendChild(input);
+        wrapper.appendChild(label);
+        openDialog({
+          title: 'ویرایش گروه',
+          render: () => wrapper,
+          confirmText: 'ذخیره',
+          onSubmit: async () => {
+            const nextName = input.value.trim();
+            if (!nextName) {
+              input.classList.add('invalid');
+              input.focus();
+              return false;
+            }
+            await DB.updateGroup(g.id, { name: nextName });
+            showToast('نام گروه به‌روزرسانی شد.', 'success');
+            await renderGroups();
+            refreshSelects();
+            return true;
+          },
+        });
+        setTimeout(() => input.focus(), 50);
       });
-      el.querySelector('[data-del-group]')?.addEventListener('click', async () => {
-        if (!confirm('حذف گروه؟ انتساب‌های مربوط به گروه حذف می‌شوند.')) return;
-        try {
-          await DB.deleteGroup(g.id);
-          await renderGroups();
-          await renderAssignments();
-          refreshSelects();
-        } catch (err) {
-          console.error(err);
-          alert('حذف گروه انجام نشد.');
-        }
+      el.querySelector('[data-del-group]')?.addEventListener('click', () => {
+        const body = document.createElement('div');
+        body.innerHTML = `<p>گروه <strong>${escapeHtml(g.name)}</strong> حذف شود؟</p><p class="muted">تمام انتساب‌های مرتبط با این گروه نیز حذف می‌شود.</p>`;
+        openDialog({
+          title: 'حذف گروه',
+          render: () => body,
+          confirmText: 'حذف گروه',
+          confirmVariant: 'danger',
+          onSubmit: async () => {
+            await DB.deleteGroup(g.id);
+            if (groupingSelectedGroupId === g.id) groupingSelectedGroupId = null;
+            showToast('گروه حذف شد.', 'success');
+            await renderGroups();
+            await renderAssignments();
+            refreshSelects();
+            return true;
+          },
+        });
       });
     });
+    updateGroupingUI();
   }
 
   async function renderStudents() {
@@ -350,9 +915,11 @@ async function initCoach() {
             await renderStudents();
             await renderPendingStudents();
             refreshSelects();
+            showToast('شاگرد تایید شد.', 'success');
+            updateGroupingUI();
           } catch (err) {
             console.error(err);
-            alert(err.message || 'خطا در تایید شاگرد');
+            showToast(err.message || 'خطا در تایید شاگرد', 'danger');
           }
         });
         actionsBox?.prepend(approveBtn);
@@ -361,50 +928,128 @@ async function initCoach() {
         const rejectBtn = document.createElement('button');
         rejectBtn.className = 'btn-sm danger';
         rejectBtn.textContent = 'رد';
-        rejectBtn.addEventListener('click', async () => {
-          if (!confirm('آیا از رد این شاگرد مطمئن هستید؟')) return;
-          try {
-            await DB.rejectStudent(s.id);
-            await renderStudents();
-            await renderPendingStudents();
-            refreshSelects();
-          } catch (err) {
-            console.error(err);
-            alert(err.message || 'خطا در رد شاگرد');
-          }
+        rejectBtn.addEventListener('click', () => {
+          const body = document.createElement('p');
+          body.innerHTML = `شاگرد <strong>${escapeHtml(s.name)}</strong> رد شود؟`;
+          openDialog({
+            title: 'رد شاگرد',
+            render: () => body,
+            confirmText: 'رد شاگرد',
+            confirmVariant: 'danger',
+            onSubmit: async () => {
+              await DB.rejectStudent(s.id);
+              showToast('شاگرد رد شد.', 'info');
+              await renderStudents();
+              await renderPendingStudents();
+              refreshSelects();
+              updateGroupingUI();
+              return true;
+            },
+          });
         });
         actionsBox?.appendChild(rejectBtn);
       }
-      el.querySelector('[data-edit-student]')?.addEventListener('click', async () => {
-        const newName = prompt('نام جدید:', s.name);
-        if (newName == null) return;
-        const newEmail = prompt('ایمیل جدید (خالی یعنی حذف):', s.email || '');
-        const newPhone = prompt('شماره موبایل جدید (خالی یعنی حذف):', s.phone || '');
-        const payload = {
-          name: (newName ?? '').trim() || s.name,
-          email: newEmail != null ? newEmail.trim() : s.email,
-          phone: newPhone != null ? newPhone.trim() : s.phone,
-        };
-        try {
-          await DB.updateStudent(s.id, payload);
-          await renderStudents();
-          refreshSelects();
-        } catch (err) { alert(err.message || 'خطا'); }
+      el.querySelector('[data-edit-student]')?.addEventListener('click', () => {
+        const dialog = document.createElement('div');
+        dialog.className = 'dialog-field';
+
+        const labelName = document.createElement('label');
+        labelName.textContent = 'نام شاگرد';
+        const inputName = document.createElement('input');
+        inputName.type = 'text';
+        inputName.value = s.name;
+        inputName.className = 'dialog-input';
+        labelName.appendChild(inputName);
+
+        const labelEmail = document.createElement('label');
+        labelEmail.textContent = 'ایمیل (اختیاری)';
+        const inputEmail = document.createElement('input');
+        inputEmail.type = 'email';
+        inputEmail.value = s.email || '';
+        inputEmail.className = 'dialog-input';
+        labelEmail.appendChild(inputEmail);
+
+        const labelPhone = document.createElement('label');
+        labelPhone.textContent = 'موبایل (اختیاری)';
+        const inputPhone = document.createElement('input');
+        inputPhone.type = 'tel';
+        inputPhone.value = s.phone || '';
+        inputPhone.className = 'dialog-input';
+        labelPhone.appendChild(inputPhone);
+
+        const labelGroup = document.createElement('label');
+        labelGroup.textContent = 'گروه';
+        const selectGroup = document.createElement('select');
+        selectGroup.className = 'dialog-input';
+        const optNone = document.createElement('option');
+        optNone.value = '';
+        optNone.textContent = 'بدون گروه';
+        selectGroup.appendChild(optNone);
+        groups.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = g.name;
+          if (g.studentIds.includes(s.id) || g.id === s.groupId) opt.selected = true;
+          selectGroup.appendChild(opt);
+        });
+        labelGroup.appendChild(selectGroup);
+
+        dialog.append(labelName, labelEmail, labelPhone, labelGroup);
+
+        openDialog({
+          title: 'ویرایش شاگرد',
+          render: () => dialog,
+          confirmText: 'ذخیره',
+          onSubmit: async () => {
+            const name = inputName.value.trim();
+            const email = inputEmail.value.trim();
+            const phone = inputPhone.value.trim();
+            if (!name) {
+              inputName.classList.add('invalid');
+              inputName.focus();
+              return false;
+            }
+            if (!email && !phone) {
+              showToast('حداقل یکی از ایمیل یا موبایل را وارد کنید.', 'warning');
+              return false;
+            }
+            await DB.updateStudent(s.id, {
+              name,
+              email: email || null,
+              phone: phone || null,
+              groupId: selectGroup.value || null,
+            });
+            showToast('اطلاعات شاگرد بروزرسانی شد.', 'success');
+            await renderStudents();
+            refreshSelects();
+            updateGroupingUI();
+            return true;
+          },
+        });
+        setTimeout(() => inputName.focus(), 50);
       });
-      el.querySelector('[data-del-student]')?.addEventListener('click', async () => {
-        if (!confirm('حذف شاگرد؟ پرداخت‌ها و اهداف شاگرد نیز حذف می‌شوند.')) return;
-        try {
-          await DB.deleteStudent(s.id);
-          await renderStudents();
-          await renderAssignments();
-          refreshSelects();
-          await renderCoachPayments();
-        } catch (err) {
-          console.error(err);
-          alert('حذف شاگرد انجام نشد.');
-        }
+      el.querySelector('[data-del-student]')?.addEventListener('click', () => {
+        const body = document.createElement('p');
+        body.innerHTML = `شاگرد <strong>${escapeHtml(s.name)}</strong> حذف شود؟<br/><span class="muted">پرداخت‌ها، اهداف و گزارش‌های مربوط به این شاگرد نیز حذف می‌شود.</span>`;
+        openDialog({
+          title: 'حذف شاگرد',
+          render: () => body,
+          confirmText: 'حذف شاگرد',
+          confirmVariant: 'danger',
+          onSubmit: async () => {
+            await DB.deleteStudent(s.id);
+            showToast('شاگرد حذف شد.', 'success');
+            await renderStudents();
+            await renderAssignments();
+            refreshSelects();
+            await renderCoachPayments();
+            updateGroupingUI();
+            return true;
+          },
+        });
       });
     });
+    updateGroupingUI();
   }
 
   async function renderPendingStudents() {
@@ -455,9 +1100,11 @@ async function initCoach() {
             await renderPendingStudents();
             await renderStudents();
             refreshSelects();
+            showToast('شاگرد تایید شد.', 'success');
+            updateGroupingUI();
           } catch (err) {
             console.error(err);
-            alert(err.message || 'خطا در تایید شاگرد');
+            showToast(err.message || 'خطا در تایید شاگرد', 'danger');
           }
         });
         el.querySelector('[data-reject]')?.addEventListener('click', async () => {
@@ -466,9 +1113,11 @@ async function initCoach() {
             await renderPendingStudents();
             await renderStudents();
             refreshSelects();
+            showToast('شاگرد رد شد.', 'info');
+            updateGroupingUI();
           } catch (err) {
             console.error(err);
-            alert(err.message || 'خطا در رد شاگرد');
+            showToast(err.message || 'خطا در رد شاگرد', 'danger');
           }
         });
       });
@@ -498,9 +1147,11 @@ async function initCoach() {
             await renderPendingStudents();
             await renderStudents();
             refreshSelects();
+            showToast('شاگرد تایید شد.', 'success');
+            updateGroupingUI();
           } catch (err) {
             console.error(err);
-            alert(err.message || 'خطا در تایید شاگرد');
+            showToast(err.message || 'خطا در تایید شاگرد', 'danger');
           }
         });
       });
@@ -520,14 +1171,14 @@ async function initCoach() {
     assignmentList.innerHTML = assignments.length ? '' : '<div class="muted">انتسابی وجود ندارد</div>';
     assignments.forEach(a => {
       const p = programs.find(p => p.id === a.programId);
-      let targetLabel = '';
-      if (a.targetType === 'group') {
-        const g = groups.find(g => g.id === a.targetId);
-        targetLabel = `گروه: ${g ? escapeHtml(g.name) : 'نامشخص'}`;
-      } else {
-        const s = students.find(s => s.id === a.targetId);
-        targetLabel = `شاگرد: ${s ? escapeHtml(s.name) : 'نامشخص'}`;
-      }
+      const isGroupTarget = a.targetType === 'group';
+      const targetEntity = isGroupTarget
+        ? groups.find(g => g.id === a.targetId)
+        : students.find(s => s.id === a.targetId);
+      const targetTypeLabel = isGroupTarget ? 'گروه' : 'شاگرد';
+      const targetName = targetEntity ? (targetEntity.name || 'نامشخص') : 'نامشخص';
+      const targetNameSafe = escapeHtml(targetName);
+      const targetLabel = `${targetTypeLabel}: ${targetNameSafe}`;
       const rangeLabel = formatJalaliRange(a.startDate, a.endDate);
       const el = document.createElement('div');
       el.className = 'item';
@@ -540,29 +1191,67 @@ async function initCoach() {
           </div>
         </div>`;
       assignmentList.appendChild(el);
-      el.querySelector('[data-edit-asg]')?.addEventListener('click', async () => {
-        const sd = prompt('تاریخ شروع (YYYY-MM-DD):', a.startDate || '');
-        if (sd == null) return;
-        const dd = prompt('مدت (روز):', String(a.durationDays || 7));
-        try {
-          await DB.updateAssignmentDates(a.id, { startDate: sd.trim(), durationDays: parseInt(dd||'7',10) });
-          await renderAssignments();
-        } catch (err) {
-          console.error(err);
-          alert('به‌روزرسانی انتساب انجام نشد.');
-        }
+      el.querySelector('[data-edit-asg]')?.addEventListener('click', () => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'dialog-field';
+        const info = document.createElement('div');
+        info.className = 'muted';
+        info.textContent = targetLabel;
+        const labelDate = document.createElement('label');
+        labelDate.textContent = 'تاریخ شروع (میلادی)';
+        const inputDate = document.createElement('input');
+        inputDate.type = 'date';
+        inputDate.value = a.startDate || '';
+        inputDate.className = 'dialog-input';
+        labelDate.appendChild(inputDate);
+        const labelDuration = document.createElement('label');
+        labelDuration.textContent = 'مدت (روز)';
+        const inputDuration = document.createElement('input');
+        inputDuration.type = 'number';
+        inputDuration.min = '1';
+        inputDuration.value = String(a.durationDays || 7);
+        inputDuration.className = 'dialog-input';
+        labelDuration.appendChild(inputDuration);
+        wrapper.append(info, labelDate, labelDuration);
+        openDialog({
+          title: 'ویرایش انتساب',
+          render: () => wrapper,
+          confirmText: 'ذخیره',
+          onSubmit: async () => {
+            const nextDate = inputDate.value;
+            const nextDuration = Math.max(1, parseInt(inputDuration.value || '7', 10));
+            if (!nextDate) {
+              inputDate.classList.add('invalid');
+              inputDate.focus();
+              return false;
+            }
+            await DB.updateAssignmentDates(a.id, { startDate: nextDate, durationDays: nextDuration });
+            showToast('انتساب بروزرسانی شد.', 'success');
+            await renderAssignments();
+            updateGroupingUI();
+            return true;
+          },
+        });
       });
-      el.querySelector('[data-del-asg]')?.addEventListener('click', async () => {
-        if (!confirm('حذف انتساب؟')) return;
-        try {
-          await DB.deleteAssignment(a.id);
-          await renderAssignments();
-        } catch (err) {
-          console.error(err);
-          alert('حذف انتساب انجام نشد.');
-        }
+      el.querySelector('[data-del-asg]')?.addEventListener('click', () => {
+        const body = document.createElement('p');
+        body.innerHTML = `انتساب برنامه <strong>${escapeHtml(p?.title || 'برنامه')}</strong> برای <strong>${escapeHtml(targetTypeLabel)}</strong> با نام <strong>${targetNameSafe}</strong> حذف شود؟`;
+        openDialog({
+          title: 'حذف انتساب',
+          render: () => body,
+          confirmText: 'حذف',
+          confirmVariant: 'danger',
+          onSubmit: async () => {
+            await DB.deleteAssignment(a.id);
+            showToast('انتساب حذف شد.', 'success');
+            await renderAssignments();
+            updateGroupingUI();
+            return true;
+          },
+        });
       });
     });
+    updateGroupingUI();
   }
 
   async function renderCoachPayments() {
@@ -608,30 +1297,59 @@ async function initCoach() {
           </div>
         </div>`;
       coachPaymentList.appendChild(el);
-      el.querySelector('[data-edit-payment]')?.addEventListener('click', async () => {
-        const curMonth = p.monthJalali || (p.month ? Jalali.fromGregorianYYYYMMToJalaliLabel(p.month) : '');
-        const m = prompt('ماه (شمسی) به صورت YYYY-MM، مثلاً 1403-07:', (p.monthJalali || ''));
-        if (m === null) return;
-        const n = prompt('توضیح رسید:', p.note || '');
-        // normalize m to YYYY-MM
-        const mNorm = (m || '').replace('/', '-').trim();
-        try {
-          await DB.updatePayment(p.id, { monthJalali: mNorm || null, month: null, note: (n || '').trim() });
-          await renderCoachPayments();
-        } catch (err) {
-          console.error(err);
-          alert('بروزرسانی پرداخت انجام نشد.');
-        }
+      el.querySelector('[data-edit-payment]')?.addEventListener('click', () => {
+        const dialog = document.createElement('div');
+        dialog.className = 'dialog-field';
+
+        const labelMonth = document.createElement('label');
+        labelMonth.textContent = 'ماه (شمسی، مثل 1403-07)';
+        const inputMonth = document.createElement('input');
+        inputMonth.type = 'text';
+        inputMonth.placeholder = 'مثلاً 1403-07';
+        inputMonth.value = p.monthJalali || '';
+        inputMonth.className = 'dialog-input';
+        labelMonth.appendChild(inputMonth);
+
+        const labelNote = document.createElement('label');
+        labelNote.textContent = 'توضیح رسید';
+        const textareaNote = document.createElement('textarea');
+        textareaNote.className = 'dialog-textarea';
+        textareaNote.rows = 3;
+        textareaNote.value = p.note || '';
+        labelNote.appendChild(textareaNote);
+
+        dialog.append(labelMonth, labelNote);
+
+        openDialog({
+          title: 'ویرایش پرداخت',
+          render: () => dialog,
+          confirmText: 'ذخیره',
+          onSubmit: async () => {
+            const monthValue = inputMonth.value.trim().replace('/', '-');
+            const noteValue = textareaNote.value.trim();
+            await DB.updatePayment(p.id, { monthJalali: monthValue || null, month: null, note: noteValue });
+            showToast('پرداخت بروزرسانی شد.', 'success');
+            await renderCoachPayments();
+            return true;
+          },
+        });
+        setTimeout(() => inputMonth.focus(), 50);
       });
-      el.querySelector('[data-del-payment]')?.addEventListener('click', async () => {
-        if (!confirm('حذف این پرداختی؟')) return;
-        try {
-          await DB.deletePayment(p.id);
-          await renderCoachPayments();
-        } catch (err) {
-          console.error(err);
-          alert('حذف پرداخت انجام نشد.');
-        }
+      el.querySelector('[data-del-payment]')?.addEventListener('click', () => {
+        const body = document.createElement('p');
+        body.innerHTML = `پرداخت مربوط به <strong>${escapeHtml(s ? s.name : 'شاگرد')}</strong> حذف شود؟`;
+        openDialog({
+          title: 'حذف پرداخت',
+          render: () => body,
+          confirmText: 'حذف پرداخت',
+          confirmVariant: 'danger',
+          onSubmit: async () => {
+            await DB.deletePayment(p.id);
+            showToast('پرداخت حذف شد.', 'success');
+            await renderCoachPayments();
+            return true;
+          },
+        });
       });
     });
   }
@@ -800,9 +1518,10 @@ async function initCoach() {
         await DB.addDayComment({ programId, studentId, dayKey, author: 'coach', authorName: 'coach', text });
         inp.value='';
         await renderCoachDayComments(studentId, programId, dayKey, container);
+        showToast('پیام ارسال شد.', 'success');
       } catch (err) {
         console.error(err);
-        alert('ارسال پیام انجام نشد.');
+        showToast(err.message || 'ارسال پیام انجام نشد.', 'danger');
       }
     });
     container.appendChild(form);
@@ -941,9 +1660,10 @@ async function initCoach() {
         await DB.addComment({ logId, author: 'coach', authorName: 'coach', text });
         inp.value='';
         await renderCoachCommentsForLog(logId, container);
+        showToast('نظر ثبت شد.', 'success');
       } catch (err) {
         console.error(err);
-        alert('ارسال نظر انجام نشد.');
+        showToast(err.message || 'ارسال نظر انجام نشد.', 'danger');
       }
     });
     container.appendChild(form);
@@ -987,7 +1707,10 @@ async function initCoach() {
     e.preventDefault();
     const title = programTitle.value.trim();
     const description = programDesc.value.trim();
-    if (!title) return;
+    if (!title) {
+      showToast('عنوان برنامه را وارد کنید.', 'warning');
+      return;
+    }
     const week = [
       { key: 'sat', content: (w_sat?.value || '').trim() },
       { key: 'sun', content: (w_sun?.value || '').trim() },
@@ -1010,24 +1733,51 @@ async function initCoach() {
       if (w_fri) w_fri.value = '';
       await renderPrograms();
       refreshSelects();
+      showToast('برنامه جدید ثبت شد.', 'success');
     } catch (err) {
       console.error(err);
-      alert('ثبت برنامه انجام نشد.');
+      showToast(err.message || 'ثبت برنامه انجام نشد.', 'danger');
     }
   });
+
+  groupingCreateForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = (groupingCreateName?.value || '').trim();
+    if (!name) {
+      showToast('نام گروه را وارد کنید.', 'warning');
+      return;
+    }
+    try {
+      const created = await DB.addGroup({ name });
+      if (groupingCreateName) groupingCreateName.value = '';
+      groupingSelectedGroupId = created?.id || groupingSelectedGroupId;
+      await renderGroups();
+      refreshSelects();
+      showToast('گروه جدید ثبت شد.', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'ثبت گروه انجام نشد.', 'danger');
+    }
+  });
+
+  groupingSearchInput?.addEventListener('input', () => updateGroupingUI());
 
   groupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = groupName.value.trim();
-    if (!name) return;
+    if (!name) {
+      showToast('نام گروه را وارد کنید.', 'warning');
+      return;
+    }
     try {
       await DB.addGroup({ name });
       groupName.value = '';
       await renderGroups();
       refreshSelects();
+      showToast('گروه جدید ثبت شد.', 'success');
     } catch (err) {
       console.error(err);
-      alert('ثبت گروه انجام نشد.');
+      showToast(err.message || 'ثبت گروه انجام نشد.', 'danger');
     }
   });
 
@@ -1038,11 +1788,11 @@ async function initCoach() {
     const phone = studentPhone.value.trim();
     const groupId = studentGroup.value;
     if (!name || !groupId) {
-      alert('نام و گروه الزامی هستند.');
+      showToast('نام و گروه الزامی هستند.', 'warning');
       return;
     }
     if (!email && !phone) {
-      alert('حداقل یکی از ایمیل یا موبایل را وارد کنید.');
+      showToast('حداقل یکی از ایمیل یا موبایل را وارد کنید.', 'warning');
       return;
     }
     try {
@@ -1050,43 +1800,87 @@ async function initCoach() {
       studentName.value = '';
       studentEmail.value = '';
       if (studentPhone) studentPhone.value = '';
+      if (studentGroup) studentGroup.selectedIndex = 0;
       await renderStudents();
       await renderGroups();
       refreshSelects();
+      updateGroupingUI();
+      showToast('شاگرد جدید ثبت شد.', 'success');
     } catch (err) {
-      alert(err.message || 'خطا در افزودن شاگرد');
+      showToast(err.message || 'خطا در افزودن شاگرد', 'danger');
     }
   });
+
+  assignTabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.assignTarget || 'groups';
+      switchAssignTab(target);
+    });
+  });
+  switchAssignTab('groups');
 
   assignGroupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const programId = assignProgramForGroup.value;
-    const groupId = assignTargetGroup.value;
-    const startDate = assignGroupStartISO.value || new Date().toISOString().slice(0,10);
+    const selectedGroups = assignGroupTargets
+      ? Array.from(assignGroupTargets.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+      : [];
+    const startDate = assignGroupStartISO.value || new Date().toISOString().slice(0, 10);
     const durationDays = Math.max(1, parseInt(assignGroupDuration.value || '7', 10));
-    if (!programId || !groupId) return;
-    try {
-      await DB.assignProgramToGroup(programId, groupId, { startDate, durationDays });
+    if (!programId) {
+      showToast('لطفاً یک برنامه را انتخاب کنید.', 'warning');
+      return;
+    }
+    if (!selectedGroups.length) {
+      showToast('حداقل یک گروه را انتخاب کنید.', 'warning');
+      return;
+    }
+    let successCount = 0;
+    for (const gid of selectedGroups) {
+      try {
+        await DB.assignProgramToGroup(programId, gid, { startDate, durationDays });
+        successCount += 1;
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'خطا در انتساب برنامه به گروه', 'danger');
+      }
+    }
+    if (successCount) {
+      showToast(`برنامه برای ${successCount} گروه ثبت شد.`, 'success');
       await renderAssignments();
-    } catch (err) {
-      console.error(err);
-      alert('انتساب برنامه به گروه انجام نشد.');
+      updateGroupingUI();
     }
   });
 
   assignStudentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const programId = assignProgramForStudent.value;
-    const studentId = assignTargetStudent.value;
-    const startDate = assignStudentStartISO.value || new Date().toISOString().slice(0,10);
+    const selectedStudents = assignStudentTargets
+      ? Array.from(assignStudentTargets.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+      : [];
+    const startDate = assignStudentStartISO.value || new Date().toISOString().slice(0, 10);
     const durationDays = Math.max(1, parseInt(assignStudentDuration.value || '7', 10));
-    if (!programId || !studentId) return;
-    try {
-      await DB.assignProgramToStudent(programId, studentId, { startDate, durationDays });
+    if (!programId) {
+      showToast('لطفاً یک برنامه را انتخاب کنید.', 'warning');
+      return;
+    }
+    if (!selectedStudents.length) {
+      showToast('حداقل یک شاگرد را انتخاب کنید.', 'warning');
+      return;
+    }
+    let successCount = 0;
+    for (const sid of selectedStudents) {
+      try {
+        await DB.assignProgramToStudent(programId, sid, { startDate, durationDays });
+        successCount += 1;
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'خطا در انتساب برنامه به شاگرد', 'danger');
+      }
+    }
+    if (successCount) {
+      showToast(`برنامه برای ${successCount} شاگرد ثبت شد.`, 'success');
       await renderAssignments();
-    } catch (err) {
-      console.error(err);
-      alert('انتساب برنامه به شاگرد انجام نشد.');
     }
   });
 
@@ -1128,10 +1922,10 @@ async function initCoach() {
   seedDemoBtn.addEventListener('click', runAsync(async () => {
     try {
       await DB.seedDemo();
-      alert('داده‌ی نمونه افزوده شد. ایمیل ورود شاگرد نمونه: ali@example.com');
+      showToast('داده‌ی نمونه افزوده شد. ایمیل ورود شاگرد نمونه: ali@example.com', 'success');
     } catch (err) {
       console.error(err);
-      alert('افزودن داده نمونه ناموفق بود (ممکن است از قبل وجود داشته باشد).');
+      showToast('افزودن داده نمونه ناموفق بود (ممکن است قبلاً اضافه شده باشد).', 'warning');
     }
     await renderPrograms();
     await renderGroups();
@@ -1186,12 +1980,23 @@ async function initCoach() {
   });
 
   coachLogoutBtn?.addEventListener('click', () => {
-    if (!confirm('آیا می‌خواهید خارج شوید؟')) return;
-    const lastEmail = coachProfile?.email || coachLoginEmail?.value || '';
-    persistCoachToken('');
-    coachProfile = null;
-    if (coachLoginEmail) coachLoginEmail.value = lastEmail;
-    showLoginView('با موفقیت خارج شدید.');
+    const body = document.createElement('p');
+    body.textContent = 'از حساب مربی خارج شوید؟';
+    openDialog({
+      title: 'خروج از حساب',
+      render: () => body,
+      confirmText: 'خروج',
+      confirmVariant: 'danger',
+      onSubmit: async () => {
+        const lastEmail = coachProfile?.email || coachLoginEmail?.value || '';
+        persistCoachToken('');
+        coachProfile = null;
+        if (coachLoginEmail) coachLoginEmail.value = lastEmail;
+        showLoginView('با موفقیت خارج شدید.');
+        showToast('با موفقیت خارج شدید.', 'info');
+        return true;
+      },
+    });
   });
 
   await attemptRestoreSession();

@@ -24,7 +24,6 @@
   <script src="https://cdn.kavenegar.com/sdk/page.js?appId=bebe472d-a9e8-4d4b-9178-8f697f55e857" defer charset="utf-8"></script>
   <script src="js/api.js"></script>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-Sb0V7CqZmqAh7vEihQ/HUkNzxaz2QmiFjCwXTlzAIXazhbugzuDUFcPRl1BDpRP70dNDO7xjOIKT2OXdwYwsgg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="styles.css" />
 
 </head>
@@ -32,7 +31,7 @@
   <div class="container">
     <header class="topbar">
       <div class="header-user">
-        <div class="logo-mark"><i class="fa-solid fa-person-running"></i></div>
+        <div class="logo-mark" aria-hidden="true">🏃</div>
         <div>
           <h1 id="studentNameHdr">پنل شاطران</h1>
           <p class="note">داشبوردی برای پیگیری تمرین‌ها و ارتباط با مربی</p>
@@ -44,91 +43,80 @@
     </header>
 
     <section class="card login-card">
-      <h2><i class="fa-solid fa-lock"></i> حساب شاگرد</h2>
-      <p class="note">با ایمیل خود وارد شوید یا ثبت‌نام کنید. در صورت فراموشی رمز، بازیابی تنها چند ثانیه طول می‌کشد.</p>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-auth="login">ورود</button>
+        <button type="button" class="auth-tab" data-auth="register">ثبت‌نام</button>
+      </div>
 
       <div class="auth-views">
-      <form id="loginForm" class="auth-view form-stack" data-auth-view="login">
-        <label>ایمیل
-          <input type="email" id="loginEmail" required placeholder="example@mail.com" />
-        </label>
-        <label>رمز عبور
-          <input type="password" id="loginPassword" required minlength="6" placeholder="********" />
-        </label>
-        <label class="checkbox-row">
-          <input type="checkbox" id="rememberMe" checked />
-          <span>مرا به خاطر بسپار</span>
-        </label>
-        <button type="submit" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> ورود</button>
-      </form>
-
-      <form id="registerForm" class="auth-view form-stack" data-auth-view="register" hidden>
-        <label>نام و نام خانوادگی (اختیاری)
-          <input type="text" id="registerName" placeholder="مثلاً علی رضایی" />
-        </label>
-        <label>ایمیل
-          <input type="email" id="registerEmail" required placeholder="example@mail.com" />
-        </label>
-        <label>رمز عبور
-          <input type="password" id="registerPassword" required minlength="6" placeholder="حداقل ۶ کاراکتر" />
-        </label>
-        <label>تکرار رمز عبور
-          <input type="password" id="registerPasswordConfirm" required minlength="6" placeholder="رمز را دوباره وارد کنید" />
-        </label>
-        <div class="note">بعد از ثبت‌نام، مربی باید حساب شما را تایید کند.</div>
-        <button type="submit" class="btn-primary"><i class="fa-solid fa-user-plus"></i> ثبت‌نام</button>
-      </form>
-
-      <div id="forgotView" class="auth-view" data-auth-view="forgot" hidden>
-        <form id="forgotRequestForm" class="form-stack">
+        <form id="loginForm" class="auth-view form-stack" data-auth-view="login">
           <label>ایمیل
-            <input type="email" id="forgotEmail" required placeholder="example@mail.com" />
+            <input type="email" id="loginEmail" required placeholder="example@mail.com" />
           </label>
-          <button type="submit" class="btn-primary"><i class="fa-solid fa-envelope-circle-check"></i> ارسال کد بازیابی</button>
+          <label>رمز عبور
+            <input type="password" id="loginPassword" required minlength="6" placeholder="********" />
+            <span class="input-help"><a href="#" data-auth="forgot" id="forgotLink">فراموشی رمز؟</a></span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="rememberMe" checked />
+            <span>مرا به خاطر بسپار</span>
+          </label>
+          <button type="submit" class="btn-primary">ورود</button>
         </form>
-        <form id="forgotResetForm" class="form-stack" style="margin-top:16px">
+
+        <form id="registerForm" class="auth-view form-stack" data-auth-view="register" hidden>
+          <label>نام و نام خانوادگی (اختیاری)
+            <input type="text" id="registerName" placeholder="مثلاً علی رضایی" />
+          </label>
           <label>ایمیل
-            <input type="email" id="forgotResetEmail" required placeholder="example@mail.com" />
+            <input type="email" id="registerEmail" required placeholder="example@mail.com" />
           </label>
-          <label>کد بازیابی
-            <input type="text" id="forgotToken" required placeholder="کد ارسال‌شده" />
+          <label>رمز عبور
+            <input type="password" id="registerPassword" required minlength="6" placeholder="حداقل ۶ کاراکتر" />
           </label>
-          <label>رمز جدید
-            <input type="password" id="forgotNewPassword" required minlength="6" placeholder="حداقل ۶ کاراکتر" />
+          <label>تکرار رمز عبور
+            <input type="password" id="registerPasswordConfirm" required minlength="6" placeholder="رمز را دوباره وارد کنید" />
           </label>
-          <button type="submit" class="btn-primary"><i class="fa-solid fa-key"></i> تغییر رمز</button>
+          <div class="note">بعد از ثبت‌نام، مربی باید حساب شما را تایید کند.</div>
+          <button type="submit" class="btn-primary">ثبت‌نام</button>
         </form>
-      </div>
-      </div>
 
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-auth="login"><i class="fa-solid fa-right-to-bracket"></i> ورود</button>
-        <button type="button" class="auth-tab" data-auth="register"><i class="fa-solid fa-user-plus"></i> ثبت‌نام</button>
-        <button type="button" class="auth-tab" data-auth="forgot"><i class="fa-solid fa-key"></i> فراموشی رمز</button>
-      </div>
-    </section>
-
-    <div id="authModal" class="modal" hidden>
-      <div class="modal-content" role="alert">
-        <p id="authModalMsg"></p>
-        <div class="modal-actions">
-          <button type="button" id="authModalClose" class="btn-primary">باشه</button>
+        <div id="forgotView" class="auth-view" data-auth-view="forgot" hidden>
+          <form id="forgotRequestForm" class="form-stack">
+            <label>ایمیل
+              <input type="email" id="forgotEmail" required placeholder="example@mail.com" />
+            </label>
+            <div class="input-help">کد بازیابی به ایمیل شما ارسال می‌شود.</div>
+            <button type="submit" class="btn-primary">ارسال کد بازیابی</button>
+          </form>
+          <form id="forgotResetForm" class="form-stack" style="margin-top:16px">
+            <input type="hidden" id="forgotResetEmail" />
+            <label>کد بازیابی
+              <input type="text" id="forgotToken" required placeholder="کد ارسال‌شده" />
+            </label>
+            <label>رمز جدید
+              <input type="password" id="forgotNewPassword" required minlength="6" placeholder="حداقل ۶ کاراکتر" />
+            </label>
+            <button type="submit" class="btn-primary">تغییر رمز</button>
+          </form>
         </div>
       </div>
-    </div>
+
+      <div id="authAlert" class="student-alert" hidden></div>
+    </section>
 
     <div id="appArea" class="layout" style="display:none">
       <aside class="sidebar">
-        <button class="side-link active" data-panel="programs">برنامه‌ها</button>
-        <button class="side-link" data-panel="payments">پرداخت‌ها</button>
-        <button class="side-link" data-panel="goals">هدف‌ها</button>
-        <button class="side-link" data-panel="archive">آرشیو</button>
-        <button class="side-link" data-panel="hr">محاسبه ضربان</button>
-        <button class="side-link" data-panel="pace">محاسبه پیس</button>
-        <button class="side-link" data-panel="log">دفترچه تمرین</button>
-        <button class="side-link" data-panel="profile">پروفایل</button>
+        <button class="side-link active" data-panel="programs">📋 برنامه‌ها</button>
+        <button class="side-link" data-panel="payments">💳 پرداخت‌ها</button>
+        <button class="side-link" data-panel="goals">🎯 هدف‌ها</button>
+        <button class="side-link" data-panel="archive">📦 آرشیو</button>
+        <button class="side-link" data-panel="hr">❤️‍🔥 محاسبه ضربان</button>
+        <button class="side-link" data-panel="pace">⏱️ محاسبه پیس</button>
+        <button class="side-link" data-panel="log">🗒️ دفترچه تمرین</button>
+        <button class="side-link" data-panel="profile">👤 پروفایل</button>
         <div class="side-footer">
-          <button id="logoutBtn" class="side-secondary danger">خروج</button>
+          <button id="logoutBtn" class="side-secondary danger">🚪 خروج</button>
         </div>
       </aside>
       <main class="content">

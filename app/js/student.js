@@ -25,9 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const forgotNewPassword = document.getElementById('forgotNewPassword');
   const appArea = document.getElementById('appArea');
   const studentPrograms = document.getElementById('studentPrograms');
-  const authModal = document.getElementById('authModal');
-  const authModalMsg = document.getElementById('authModalMsg');
-  const authModalClose = document.getElementById('authModalClose');
+  const authAlert = document.getElementById('authAlert');
 
   // Sidebar panels
   const sideLinks = document.querySelectorAll('.side-link');
@@ -130,25 +128,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentJYear = null;
   const AUTH_DEFAULT = 'login';
 
-  function showModal(message, variant = 'info') {
-    if (!authModal || !authModalMsg) return;
-    authModalMsg.textContent = message || '';
-    authModal.dataset.variant = variant;
-    authModal.hidden = false;
-    authModal.classList.add('open');
+  function showAuthAlert(message, variant = 'info') {
+    if (!authAlert) return;
+    authAlert.textContent = message || '';
+    authAlert.dataset.variant = variant;
+    authAlert.hidden = !message;
   }
-
-  function hideModal() {
-    if (!authModal) return;
-    authModal.classList.remove('open');
-    authModal.hidden = true;
-    authModal.dataset.variant = 'info';
-  }
-
-  authModalClose?.addEventListener('click', hideModal);
-  authModal?.addEventListener('click', (e) => {
-    if (e.target === authModal) hideModal();
-  });
 
   function switchAuth(tab) {
     authTabs.forEach(btn => {
@@ -157,7 +142,21 @@ document.addEventListener('DOMContentLoaded', () => {
     authViews.forEach(view => {
       view.hidden = view.dataset.authView !== tab;
     });
-    hideModal();
+    showAuthAlert('');
+  }
+
+  function activatePanel(name) {
+    if (!name) return;
+    sideLinks.forEach(link => {
+      const match = link.dataset.panel === name;
+      link.classList.toggle('active', match);
+    });
+    panels.forEach(panel => {
+      const match = panel.getAttribute('data-panel') === name;
+      panel.hidden = !match;
+    });
+    if (name === 'profile') renderProfile().catch(err => console.error(err));
+    if (name === 'log') renderStudentCharts().catch(err => console.error(err));
   }
 
   authTabs.forEach(btn => {
@@ -165,9 +164,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   if (authTabs.length) switchAuth(AUTH_DEFAULT);
 
+  sideLinks.forEach(link => {
+    link.addEventListener('click', () => activatePanel(link.dataset.panel));
+  });
+  if (sideLinks.length) activatePanel(sideLinks[0].dataset.panel);
+
   function enterApp() {
     if (appArea) appArea.style.display = '';
     if (loginSection) loginSection.style.display = 'none';
+    activatePanel('programs');
   }
 
   function showLoginView() {
@@ -184,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('Failed to refresh student', err);
     }
-    showModal(`${currentStudent.name} عزیز خوش آمدید!`, 'success');
+    showAuthAlert(`${currentStudent.name} عزیز خوش آمدید!`, 'success');
     enterApp();
     await loadStudentWorkspace();
   }
@@ -195,15 +200,11 @@ document.addEventListener('DOMContentLoaded', () => {
     showLoginView();
     if (loginForm) {
       loginForm.reset();
-      const remember = isRememberOn();
-      if (rememberMe) rememberMe.checked = remember;
-      if (remember) {
-        const savedEmail = getRememberedEmail();
-        if (loginEmail) loginEmail.value = savedEmail || '';
-      } else if (loginEmail) {
-        loginEmail.value = '';
-      }
-      if (loginPassword) loginPassword.value = '';
+      const savedEmail = getRememberedEmail();
+      const savedPassword = getRememberedPassword();
+      if (rememberMe) rememberMe.checked = !!(savedEmail || savedPassword);
+      if (loginEmail && savedEmail) loginEmail.value = savedEmail;
+      if (loginPassword && savedPassword) loginPassword.value = savedPassword;
     }
     if (studentPrograms) studentPrograms.innerHTML = '';
     if (paymentList) paymentList.innerHTML = '';
@@ -214,13 +215,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideModal();
+    showAuthAlert('');
 
     const email = (loginEmail?.value || '').trim().toLowerCase();
     const password = (loginPassword?.value || '').trim();
 
     if (!email || !password) {
-      showModal('ایمیل و رمز عبور را وارد کنید.', 'danger');
+      showAuthAlert('ایمیل و رمز عبور را وارد کنید.', 'danger');
       return;
     }
 
@@ -228,25 +229,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await DB.loginStudent({ email, password });
       const student = result?.student;
       if (!student) {
-        showModal('ورود ناموفق بود.', 'danger');
+        showAuthAlert('ورود ناموفق بود.', 'danger');
         return;
       }
       currentStudent = student;
       if (rememberMe?.checked) {
-        setRemember(email, true);
+        setRemember(email, password, true);
       } else {
-        setRemember('', false);
+        setRemember('', '', false);
       }
       await finalizeLogin();
     } catch (err) {
       console.error(err);
-      showModal(err.message || 'خطا در ورود', 'danger');
+      showAuthAlert(err.message || 'خطا در ورود', 'danger');
     }
   });
 
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideModal();
+    showAuthAlert('');
 
     const name = (registerName?.value || '').trim();
     const email = (registerEmail?.value || '').trim().toLowerCase();
@@ -254,11 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirm = (registerPasswordConfirm?.value || '').trim();
 
     if (!email || !password) {
-      showModal('ایمیل و رمز عبور الزامی است.', 'danger');
+      showAuthAlert('ایمیل و رمز عبور الزامی است.', 'danger');
       return;
     }
     if (password !== confirm) {
-      showModal('تکرار رمز با رمز وارد شده یکسان نیست.', 'danger');
+      showAuthAlert('تکرار رمز با رمز وارد شده یکسان نیست.', 'danger');
       return;
     }
 
@@ -268,19 +269,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (loginPassword) loginPassword.value = '';
       switchAuth('login');
       registerForm?.reset();
-      showModal('ثبت‌نام انجام شد. پس از تایید مربی می‌توانید وارد شوید.', 'info');
+      showAuthAlert('ثبت‌نام انجام شد. پس از تایید مربی می‌توانید وارد شوید.', 'info');
     } catch (err) {
       console.error(err);
-      showModal(err.message || 'خطا در ثبت‌نام', 'danger');
+      showAuthAlert(err.message || 'خطا در ثبت‌نام', 'danger');
     }
   });
 
   forgotRequestForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideModal();
+    showAuthAlert('');
     const email = (forgotEmail?.value || '').trim().toLowerCase();
     if (!email) {
-      showModal('لطفاً ایمیل خود را وارد کنید.', 'danger');
+      showAuthAlert('لطفاً ایمیل خود را وارد کنید.', 'danger');
       return;
     }
     try {
@@ -291,23 +292,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (forgotTokenInput) forgotTokenInput.value = res.token;
         if (forgotResetEmail) forgotResetEmail.value = email;
       }
-      showModal(message, 'info');
+      showAuthAlert(message, 'info');
     } catch (err) {
       console.error(err);
-      showModal(err.message || 'خطا در ارسال درخواست بازیابی', 'danger');
+      showAuthAlert(err.message || 'خطا در ارسال درخواست بازیابی', 'danger');
     }
   });
 
   forgotResetForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideModal();
+    showAuthAlert('');
 
     const email = (forgotResetEmail?.value || '').trim().toLowerCase();
     const token = (forgotTokenInput?.value || '').trim();
     const password = (forgotNewPassword?.value || '').trim();
 
     if (!email || !token || !password) {
-      showModal('ایمیل، کد و رمز جدید الزامی است.', 'danger');
+      showAuthAlert('ایمیل، کد و رمز جدید الزامی است.', 'danger');
       return;
     }
 
@@ -316,12 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (loginEmail) loginEmail.value = email;
       if (loginPassword) loginPassword.value = '';
       switchAuth('login');
-      showModal('رمز عبور با موفقیت تغییر کرد. لطفاً وارد شوید.', 'success');
+      showAuthAlert('رمز عبور با موفقیت تغییر کرد. لطفاً وارد شوید.', 'success');
       forgotRequestForm?.reset();
       forgotResetForm?.reset();
     } catch (err) {
       console.error(err);
-      showModal(err.message || 'خطا در تغییر رمز', 'danger');
+      showAuthAlert(err.message || 'خطا در تغییر رمز', 'danger');
     }
   });
 
@@ -337,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Student data prefetch failed', err);
     }
     initJalaliPicker();
-    renderPrograms();
+    await renderPrograms();
     await renderPayments();
     await renderGoals();
     await renderArchive();
@@ -355,28 +356,111 @@ document.addEventListener('DOMContentLoaded', () => {
 
   logoutBtn?.addEventListener('click', handleLogout);
 
-  function renderPrograms() {
+  async function renderPrograms() {
     if (!currentStudent) return;
-    const programs = DB.getProgramsForStudent(currentStudent.id);
-    studentPrograms.innerHTML = programs.length ? '' : '<div class="muted">برنامه‌ای برای شما ثبت نشده است</div>';
-    programs.forEach(p => {
-      const el = document.createElement('div');
-      el.className = 'item';
-      const week = Array.isArray(p.week) ? p.week : DB.defaultWeek();
-      const todayIdx = mapJsDayToSatFirst(new Date().getDay()); // 0..6 (0=Sat)
-      const daysHtml = week.map((d, idx) => {
-        const has = (d.content || '').trim().length > 0;
-        const cls = `day${has ? ' has' : ''}${idx===todayIdx ? ' today' : ''}`;
-        const content = has ? `<div class="day-content">${escapeHtml(d.content)}</div>` : '<div class="day-empty muted">بدون برنامه</div>';
-        return `<div class="${cls}"><div class="day-title">${d.label}</div>${content}</div>`;
-      }).join('');
-      el.innerHTML = `
-        <div class="program-title"><strong>${escapeHtml(p.title)}</strong></div>
-        <div class="muted">${escapeHtml(p.description || '')}</div>
-        <div class="week-grid days">${daysHtml}</div>
-      `;
-      studentPrograms.appendChild(el);
+    const programs = DB.getProgramsForStudent(currentStudent.id) || [];
+    const programMap = new Map(programs.map(p => [p.id, p]));
+    const assignments = (DB.listAssignmentsForStudent(currentStudent.id) || []).slice().sort((a, b) => {
+      if (a.startDate && b.startDate) return a.startDate.localeCompare(b.startDate);
+      if (a.startDate) return -1;
+      if (b.startDate) return 1;
+      return 0;
     });
+
+    studentPrograms.innerHTML = '';
+
+    const logs = await DB.listLogsForStudent(currentStudent.id) || [];
+    const moodByDate = new Map();
+    logs.forEach(log => {
+      const iso = String(log.date || '').slice(0, 10);
+      if (!iso) return;
+      const emoji = log.moodEmoji || scaleToEmoji(log.mood);
+      if (emoji) moodByDate.set(iso, emoji);
+    });
+
+    const renderAssignmentCard = (program, assignment) => {
+      const week = Array.isArray(program.week) ? program.week : DB.defaultWeek();
+      const card = document.createElement('div');
+      card.className = 'program-card';
+
+      const header = document.createElement('div');
+      header.className = 'program-card-header';
+      const startISO = assignment?.startDate || new Date().toISOString().slice(0, 10);
+      const endISO = calcAssignmentEnd(startISO, assignment?.durationDays || week.length);
+      const monthLabel = formatMonthFromISO(startISO);
+      const range = formatJalaliRange(startISO, endISO);
+      header.innerHTML = `<div><h3>${escapeHtml(program.title)}</h3>
+        <div class="program-meta"><span>${escapeHtml(monthLabel)}</span><span>${escapeHtml(range)}</span></div>
+        ${program.description ? `<p>${escapeHtml(program.description)}</p>` : ''}</div>`;
+
+      const table = document.createElement('div');
+      table.className = 'program-week';
+      const todayIdx = mapJsDayToSatFirst(new Date().getDay());
+
+      week.forEach((day, idx) => {
+        const dateISO = addDaysISO(startISO, idx);
+        const content = String(day.content || '').trim();
+        const moodEmoji = moodByDate.get(dateISO) || '–';
+        const row = document.createElement('div');
+        row.className = 'program-week-row';
+        if (idx === todayIdx) row.classList.add('today');
+
+        row.innerHTML = `
+          <div class="program-week-date">${escapeHtml(formatJalaliDate(dateISO))}</div>
+          <div class="program-week-label">${escapeHtml(day.label)}</div>
+          <div class="program-week-desc">${content ? escapeHtml(content) : '<span class="muted">بدون برنامه</span>'}</div>
+          <div class="program-week-mood">${escapeHtml(moodEmoji)}</div>
+          <div class="program-week-actions"><button type="button" class="btn-link" data-log-day="${day.key}" data-log-date="${dateISO}">دفترچه تمرین</button></div>
+        `;
+        table.appendChild(row);
+      });
+
+      card.append(header, table);
+      studentPrograms.appendChild(card);
+    };
+
+    if (assignments.length) {
+      assignments.forEach(asg => {
+        const program = programMap.get(asg.programId);
+        if (!program) return;
+        renderAssignmentCard(program, asg);
+      });
+    } else if (programs.length) {
+      programs.forEach(program => renderAssignmentCard(program, null));
+    } else {
+      studentPrograms.innerHTML = '<div class="muted">برنامه‌ای برای شما تعریف نشده است.</div>';
+    }
+
+    studentPrograms.querySelectorAll('[data-log-day]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dayKey = btn.getAttribute('data-log-day');
+        openLogForDay(dayKey);
+      });
+    });
+  }
+
+  function calcAssignmentEnd(startISO, durationDays) {
+    const start = parseISODate(startISO);
+    const end = new Date(start);
+    end.setDate(end.getDate() + Math.max(1, parseInt(durationDays || 7, 10)) - 1);
+    return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+  }
+
+  function addDaysISO(startISO, offset) {
+    const base = parseISODate(startISO);
+    const d = new Date(base);
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function formatMonthFromISO(iso) {
+    try {
+      const d = parseISODate(iso);
+      const j = Jalali.toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+      return `${j.jy} ${Jalali.monthNames[j.jm - 1]}`;
+    } catch {
+      return '';
+    }
   }
 
   function renderArchive(){
@@ -745,6 +829,17 @@ document.addEventListener('DOMContentLoaded', () => {
     container.appendChild(form);
   }
 
+  function formatJalaliDate(iso){
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const j = Jalali.toJalali(d.getFullYear(), d.getMonth()+1, d.getDate());
+      return `${j.jy}/${String(j.jm).padStart(2,'0')}/${String(j.jd).padStart(2,'0')}`;
+    } catch {
+      return '';
+    }
+  }
+
   function formatJalaliDateTime(iso){
     try {
       const d = new Date(iso);
@@ -803,6 +898,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function emojiToScale(e){
     const map = { '😫':1,'😕':2,'😐':3,'🙂':4,'😄':5 };
     return map[e] || 0;
+  }
+  function scaleToEmoji(n){
+    const value = Number(n || 0);
+    if (value >= 4.5) return '😄';
+    if (value >= 3.5) return '🙂';
+    if (value >= 2.5) return '😐';
+    if (value >= 1.5) return '😕';
+    if (value > 0) return '😫';
+    return '';
   }
 
   function drawSparkline(canvas, values, opts={}){
@@ -1226,21 +1330,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Sidebar behavior
-  sideLinks.forEach(btn => {
-    btn.addEventListener('click', () => {
-      sideLinks.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const name = btn.getAttribute('data-panel');
-      panels.forEach(p => {
-        const match = p.getAttribute('data-panel') === name;
-        p.hidden = !match;
-      });
-      if (name === 'profile') renderProfile().catch(err => console.error(err));
-      if (name === 'log') renderStudentCharts().catch(err => console.error(err));
-    });
-  });
-
   // Cookie/localStorage helpers for remember-me
   function setCookie(name, value, days){
     try {
@@ -1256,48 +1345,85 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function delCookie(name){ setCookie(name, '', -1); }
 
-  function updateRememberFlag() {
-    const hasEmail = !!(getCookie('csa_last_email') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_email') : ''));
-    if (hasEmail) {
-      setCookie('csa_remember', '1', 180);
-      try { localStorage.setItem('csa_remember', '1'); } catch {}
-    } else {
-      delCookie('csa_remember');
-      try { localStorage.removeItem('csa_remember'); } catch {}
+  const STORAGE_EMAIL_KEY = 'csa_stud_email';
+  const STORAGE_PWD_KEY = 'csa_stud_pwd';
+  const LEGACY_EMAIL_KEY = 'csa_last_email';
+
+  function encodeValue(value) {
+    if (!value) return '';
+    try {
+      return btoa(unescape(encodeURIComponent(value)));
+    } catch {
+      return '';
     }
   }
 
-  function setRemember(email, on) {
-    if (on && email) {
-      setCookie('csa_last_email', email, 180);
-      try { localStorage.setItem('csa_last_email', email); } catch {}
-    } else {
-      delCookie('csa_last_email');
-      try { localStorage.removeItem('csa_last_email'); } catch {}
+  function decodeValue(value) {
+    if (!value) return '';
+    try {
+      return decodeURIComponent(escape(atob(value)));
+    } catch {
+      return '';
     }
-    updateRememberFlag();
+  }
+
+  function setRemember(email, password, on) {
+    if (on && email) {
+      setCookie(STORAGE_EMAIL_KEY, email, 365);
+      try { localStorage.setItem(STORAGE_EMAIL_KEY, email); } catch {}
+      try { sessionStorage.setItem(STORAGE_EMAIL_KEY, email); } catch {}
+      const pwdToStore = password || getRememberedPassword();
+      if (pwdToStore) {
+        const encoded = encodeValue(pwdToStore);
+        setCookie(STORAGE_PWD_KEY, encoded, 365);
+        try { localStorage.setItem(STORAGE_PWD_KEY, encoded); } catch {}
+        try { sessionStorage.setItem(STORAGE_PWD_KEY, encoded); } catch {}
+      }
+    } else {
+      delCookie(STORAGE_EMAIL_KEY);
+      delCookie(LEGACY_EMAIL_KEY);
+      delCookie(STORAGE_PWD_KEY);
+      try { localStorage.removeItem(STORAGE_EMAIL_KEY); localStorage.removeItem(LEGACY_EMAIL_KEY); localStorage.removeItem(STORAGE_PWD_KEY); } catch {}
+      try { sessionStorage.removeItem(STORAGE_EMAIL_KEY); sessionStorage.removeItem(STORAGE_PWD_KEY); } catch {}
+    }
   }
 
   function getRememberedEmail() {
-    return getCookie('csa_last_email') || (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_last_email') : '') || '';
+    return (
+      sessionStorage.getItem(STORAGE_EMAIL_KEY) ||
+      localStorage.getItem(STORAGE_EMAIL_KEY) ||
+      getCookie(STORAGE_EMAIL_KEY) ||
+      getCookie(LEGACY_EMAIL_KEY) ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem(LEGACY_EMAIL_KEY) : '') ||
+      ''
+    );
   }
 
-  function isRememberOn() {
-    const c = getCookie('csa_remember');
-    const l = (typeof localStorage !== 'undefined' ? localStorage.getItem('csa_remember') : null);
-    return c === '1' || l === '1';
+  function getRememberedPassword() {
+    const raw = sessionStorage.getItem(STORAGE_PWD_KEY) ||
+      localStorage.getItem(STORAGE_PWD_KEY) ||
+      getCookie(STORAGE_PWD_KEY) || '';
+    return decodeValue(raw);
   }
 
-  // Auto-fill and optional auto-login
-  (function initRemember() {
-    const lastEmail = getRememberedEmail();
-    if (lastEmail && loginEmail) loginEmail.value = lastEmail;
-    if (rememberMe) rememberMe.checked = isRememberOn();
-    if (isRememberOn() && lastEmail && loginForm) {
-      setTimeout(() => {
-        try { loginForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); } catch {}
-      }, 0);
+  rememberMe?.addEventListener('change', () => {
+    const emailVal = (loginEmail?.value || '').trim().toLowerCase();
+    const pwdValInput = (loginPassword?.value || '').trim();
+    const pwdVal = pwdValInput || getRememberedPassword();
+    if (rememberMe.checked && emailVal && pwdVal) {
+      setRemember(emailVal, pwdVal, true);
+    } else if (!rememberMe.checked) {
+      setRemember('', '', false);
+      if (loginPassword) loginPassword.value = '';
     }
+  });
+
+  (function initRemember() {
+    const savedEmail = getRememberedEmail();
+    const savedPassword = getRememberedPassword();
+    if (loginEmail && savedEmail && !loginEmail.value) loginEmail.value = savedEmail;
+    if (loginPassword && savedPassword && !loginPassword.value) loginPassword.value = savedPassword;
+    if (rememberMe) rememberMe.checked = !!(savedEmail || savedPassword);
   })();
 
   // Heart Rate quick estimator (by age & sex)

@@ -328,12 +328,14 @@
   }
 
   function escapeHtml(str) {
-    return String(str || '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;',
+    };
+    return String(str || '').replace(/[&<>"']/g, ch => map[ch]);
   }
 
   function setToken(token) {
