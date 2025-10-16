@@ -78,61 +78,104 @@
       </section>
 
       <section class="card" id="panelCard" hidden>
-        <div class="row-between" style="align-items:flex-start">
+        <div class="panel-header">
           <div>
-            <h2>لیست ادمین‌ها</h2>
+            <h2>مدیریت Shotarun</h2>
             <div id="currentAdmin" class="muted"></div>
           </div>
           <button id="logoutBtn" class="btn-sm danger">خروج</button>
         </div>
 
-        <div class="card" style="margin-top:16px">
-          <h3>افزودن ادمین جدید</h3>
-          <form id="createAdminForm" class="form-grid">
-            <label>
-              ایمیل
-              <input type="email" name="email" required />
-            </label>
-            <label>
-              نام (اختیاری)
-              <input type="text" name="name" />
-            </label>
-            <label>
-              پسورد اولیه
-              <input type="password" name="password" required />
-            </label>
-            <label class="checkbox">
-              <input type="checkbox" name="isSuper" />
-              <span>دسترسی سوپر ادمین</span>
-            </label>
-            <button type="submit">ایجاد</button>
-          </form>
-          <div id="createAdminMsg" class="muted"></div>
+        <div class="tabs" id="panelTabs">
+          <button type="button" class="tab active" data-tab="overview">نمای کلی</button>
+          <button type="button" class="tab" data-tab="admins" data-role="super">ادمین‌ها</button>
+          <button type="button" class="tab" data-tab="coaches">مربی‌ها</button>
         </div>
 
-        <div id="adminsList" class="list" style="margin-top:16px"></div>
+        <div class="panel-view" data-panel-view="overview">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-title">کل ادمین‌ها</div>
+              <div class="metric-value" id="statTotalAdmins">0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">سوپر ادمین فعال</div>
+              <div class="metric-value" id="statSuperAdmins">0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">مربی‌های ثبت‌شده</div>
+              <div class="metric-value" id="statCoaches">0</div>
+            </div>
+          </div>
 
-        <div class="card" style="margin-top:32px">
-          <h3>مدیریت مربی‌ها</h3>
-          <form id="createCoachForm" class="form-grid">
-            <label>
-              ایمیل
-              <input type="email" name="email" required />
-            </label>
-            <label>
-              نام (اختیاری)
-              <input type="text" name="name" />
-            </label>
-            <label>
-              پسورد اولیه
-              <input type="password" name="password" required />
-            </label>
-            <button type="submit">ایجاد مربی</button>
-          </form>
-          <div id="createCoachMsg" class="muted"></div>
+          <div class="panel-block">
+            <h3>میانبرها</h3>
+            <div class="quick-links">
+              <button type="button" class="chip-link" data-switch-tab="admins" data-role="super">➕ افزودن ادمین جدید</button>
+              <button type="button" class="chip-link" data-switch-tab="coaches">➕ افزودن مربی جدید</button>
+              <a class="chip-link" href="coach.html" target="_blank" rel="noopener">👀 مشاهده پنل مربی</a>
+              <a class="chip-link" href="student.html" target="_blank" rel="noopener">👀 مشاهده پنل شاگرد</a>
+            </div>
+          </div>
         </div>
 
-        <div id="coachList" class="list" style="margin-top:16px"></div>
+        <div class="panel-view" data-panel-view="admins" hidden>
+          <div class="panel-block">
+            <h3>افزودن ادمین جدید</h3>
+            <form id="createAdminForm" class="form-grid">
+              <label>
+                ایمیل
+                <input type="email" name="email" required />
+              </label>
+              <label>
+                نام (اختیاری)
+                <input type="text" name="name" />
+              </label>
+              <label>
+                پسورد اولیه
+                <input type="password" name="password" required />
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" name="isSuper" />
+                <span>دسترسی سوپر ادمین</span>
+              </label>
+              <button type="submit">ایجاد</button>
+            </form>
+            <div id="createAdminMsg" class="muted"></div>
+          </div>
+
+          <div class="panel-block">
+            <h3>فهرست ادمین‌ها</h3>
+            <div id="adminsList" class="list"></div>
+          </div>
+        </div>
+
+        <div class="panel-view" data-panel-view="coaches" hidden>
+          <div class="panel-block">
+            <h3>ایجاد مربی</h3>
+            <form id="createCoachForm" class="form-grid">
+              <label>
+                ایمیل
+                <input type="email" name="email" required />
+              </label>
+              <label>
+                نام (اختیاری)
+                <input type="text" name="name" />
+              </label>
+              <label>
+                پسورد اولیه
+                <input type="password" name="password" required />
+              </label>
+              <button type="submit">ایجاد مربی</button>
+            </form>
+            <div id="createCoachMsg" class="muted"></div>
+          </div>
+
+          <div class="panel-block">
+            <h3>فهرست مربی‌ها</h3>
+            <div id="coachList" class="list"></div>
+          </div>
+        </div>
       </section>
     </main>
   </div>

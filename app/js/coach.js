@@ -11,10 +11,13 @@ async function initCoach() {
   const coachLoginForm = document.getElementById('coachLoginForm');
   const coachLoginEmail = document.getElementById('coachLoginEmail');
   const coachLoginPassword = document.getElementById('coachLoginPassword');
+  const coachRemember = document.getElementById('coachRemember');
   const coachLoginMsg = document.getElementById('coachLoginMsg');
   const coachLogoutBtn = document.getElementById('coachLogout');
 
   const coachTokenKey = 'csa_coach_token';
+  const COACH_STORAGE_EMAIL_KEY = 'csa_coach_email';
+  const COACH_STORAGE_PWD_KEY = 'csa_coach_pwd';
   let coachToken = localStorage.getItem(coachTokenKey) || '';
   let coachProfile = null;
 
@@ -117,6 +120,7 @@ async function initCoach() {
   // Goals (coach view)
   const goalFilterStudent = document.getElementById('goalFilterStudent');
   const coachGoalList = document.getElementById('coachGoalList');
+  const stravaList = document.getElementById('stravaList');
 
   const coachDialog = document.getElementById('coachDialog');
   const coachDialogTitle = document.getElementById('coachDialogTitle');
@@ -258,11 +262,102 @@ async function initCoach() {
     }
   }
 
+  function setCookie(name, value, days) {
+    try {
+      const maxAge = days ? days * 24 * 60 * 60 : 365 * 24 * 60 * 60;
+      const secure = window.location?.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}${secure}; SameSite=Lax`;
+    } catch {}
+  }
+
+  function getCookie(name) {
+    try {
+      const pattern = new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)');
+      const match = document.cookie.match(pattern);
+      return match ? decodeURIComponent(match[1]) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function delCookie(name) {
+    setCookie(name, '', -1);
+  }
+
+  function encodeRememberValue(value) {
+    if (!value) return '';
+    try {
+      return btoa(unescape(encodeURIComponent(value)));
+    } catch {
+      return '';
+    }
+  }
+
+  function decodeRememberValue(value) {
+    if (!value) return '';
+    try {
+      return decodeURIComponent(escape(atob(value)));
+    } catch {
+      return '';
+    }
+  }
+
+  function setCoachRemember(email, password, on) {
+    if (on && email) {
+      setCookie(COACH_STORAGE_EMAIL_KEY, email, 365);
+      try { localStorage.setItem(COACH_STORAGE_EMAIL_KEY, email); } catch {}
+      try { sessionStorage.setItem(COACH_STORAGE_EMAIL_KEY, email); } catch {}
+      const pwdToStore = password || getCoachRememberedPassword();
+      if (pwdToStore) {
+        const encoded = encodeRememberValue(pwdToStore);
+        setCookie(COACH_STORAGE_PWD_KEY, encoded, 365);
+        try { localStorage.setItem(COACH_STORAGE_PWD_KEY, encoded); } catch {}
+        try { sessionStorage.setItem(COACH_STORAGE_PWD_KEY, encoded); } catch {}
+      }
+    } else {
+      delCookie(COACH_STORAGE_EMAIL_KEY);
+      delCookie(COACH_STORAGE_PWD_KEY);
+      try { localStorage.removeItem(COACH_STORAGE_EMAIL_KEY); localStorage.removeItem(COACH_STORAGE_PWD_KEY); } catch {}
+      try { sessionStorage.removeItem(COACH_STORAGE_EMAIL_KEY); sessionStorage.removeItem(COACH_STORAGE_PWD_KEY); } catch {}
+    }
+  }
+
+  function getCoachRememberedEmail() {
+    return (
+      sessionStorage.getItem(COACH_STORAGE_EMAIL_KEY) ||
+      localStorage.getItem(COACH_STORAGE_EMAIL_KEY) ||
+      getCookie(COACH_STORAGE_EMAIL_KEY) ||
+      ''
+    );
+  }
+
+  function getCoachRememberedPassword() {
+    const raw =
+      sessionStorage.getItem(COACH_STORAGE_PWD_KEY) ||
+      localStorage.getItem(COACH_STORAGE_PWD_KEY) ||
+      getCookie(COACH_STORAGE_PWD_KEY) ||
+      '';
+    return decodeRememberValue(raw);
+  }
+
+  function applyCoachRememberedCredentials(force = false) {
+    const savedEmail = getCoachRememberedEmail();
+    const savedPassword = getCoachRememberedPassword();
+    if (coachRemember) coachRemember.checked = !!(savedEmail || savedPassword);
+    if (coachLoginEmail && savedEmail && (force || !coachLoginEmail.value)) {
+      coachLoginEmail.value = savedEmail;
+    }
+    if (coachLoginPassword && savedPassword && (force || !coachLoginPassword.value)) {
+      coachLoginPassword.value = savedPassword;
+    }
+  }
+
   function showLoginView(message = '') {
     if (coachAppArea) coachAppArea.style.display = 'none';
     if (coachLoginCard) coachLoginCard.style.display = '';
     if (coachLoginMsg) coachLoginMsg.textContent = message || '';
     if (coachLoginPassword) coachLoginPassword.value = '';
+    applyCoachRememberedCredentials(true);
   }
 
   function showAppView() {
@@ -1444,6 +1539,7 @@ async function initCoach() {
         const dayLabel = dayKeyLabel(l.dayKey);
         const chips = [
           (dayLabel ? chip('روز', dayLabel) : ''),
+          chip('وضعیت', l.completed ? '✅ انجام شد' : '⏱️ انجام نشده'),
           (l.moodEmoji ? chip('حال', l.moodEmoji) : (l.mood ? chip('حال', scaleLabel(l.mood)) : '')),
           (l.sleepQuality ? chip('خواب', scaleLabel(l.sleepQuality)) : ''),
           (l.sleepHours!=null ? chip('ساعت خواب', String(l.sleepHours)) : ''),
@@ -1597,6 +1693,7 @@ async function initCoach() {
         chip('شاگرد', `${s.name}`),
         (p ? chip('برنامه', p.title) : chip('برنامه', 'آزاد')),
         (dayLabel ? chip('روز', dayLabel) : ''),
+        chip('وضعیت', l.completed ? '✅ انجام شد' : '⏱️ انجام نشده'),
         (l.moodEmoji ? chip('حال', l.moodEmoji) : (l.mood ? chip('حال', scaleLabel(l.mood)) : '')),
         (l.sleepQuality ? chip('خواب', scaleLabel(l.sleepQuality)) : ''),
         (l.sleepHours!=null ? chip('ساعت خواب', String(l.sleepHours)) : ''),
@@ -1958,6 +2055,18 @@ async function initCoach() {
   }
 }
 
+  coachRemember?.addEventListener('change', () => {
+    const emailVal = (coachLoginEmail?.value || '').trim();
+    const pwdInputVal = (coachLoginPassword?.value || '').trim();
+    const pwdVal = pwdInputVal || getCoachRememberedPassword();
+    if (coachRemember.checked && emailVal && pwdVal) {
+      setCoachRemember(emailVal, pwdVal, true);
+    } else if (!coachRemember.checked) {
+      setCoachRemember('', '', false);
+      if (coachLoginPassword) coachLoginPassword.value = '';
+    }
+  });
+
   coachLoginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (coachLoginMsg) coachLoginMsg.textContent = '';
@@ -1971,6 +2080,11 @@ async function initCoach() {
       const data = await API.coachLogin({ email, password });
       persistCoachToken(data.token);
       coachProfile = data.coach || null;
+      if (coachRemember?.checked) {
+        setCoachRemember(email, password, true);
+      } else {
+        setCoachRemember('', '', false);
+      }
       if (coachLoginEmail && coachProfile?.email) coachLoginEmail.value = coachProfile.email;
       if (coachLoginPassword) coachLoginPassword.value = '';
       await enterCoachApp();

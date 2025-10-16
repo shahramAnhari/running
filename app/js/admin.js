@@ -21,12 +21,93 @@
   const createCoachForm = document.getElementById('createCoachForm');
   const createCoachMsg = document.getElementById('createCoachMsg');
   const coachList = document.getElementById('coachList');
+  const panelTabs = document.getElementById('panelTabs');
+  const panelTabButtons = panelTabs ? Array.from(panelTabs.querySelectorAll('[data-tab]')) : [];
+  const panelViews = panelCard ? Array.from(panelCard.querySelectorAll('[data-panel-view]')) : [];
+  const quickTabLinks = panelCard ? Array.from(panelCard.querySelectorAll('[data-switch-tab]')) : [];
+  const statTotalAdmins = document.getElementById('statTotalAdmins');
+  const statSuperAdmins = document.getElementById('statSuperAdmins');
+  const statCoaches = document.getElementById('statCoaches');
 
   function setCardVisibility({ bootstrap = false, login = false, panel = false }) {
     if (bootstrapCard) bootstrapCard.hidden = !bootstrap;
     if (loginCard) loginCard.hidden = !login;
-    if (panelCard) panelCard.hidden = !panel;
+  if (panelCard) panelCard.hidden = !panel;
+}
+
+  function switchPanelTab(target) {
+    if (!panelViews.length) return;
+    let desired = target;
+    let activeButton = panelTabButtons.find(btn => !btn.hidden && btn.dataset.tab === desired);
+    if (!activeButton) {
+      activeButton = panelTabButtons.find(btn => !btn.hidden);
+      if (!activeButton) return;
+      desired = activeButton.dataset.tab;
+    }
+    panelTabButtons.forEach(btn => {
+      const isActive = btn === activeButton;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', String(isActive));
+      btn.setAttribute('tabindex', isActive ? '0' : '-1');
+    });
+    panelViews.forEach(view => {
+      const match = view.dataset.panelView === desired;
+      view.hidden = !match;
+    });
   }
+
+  function syncTabsWithRole() {
+    if (!panelTabs) return;
+    const isSuper = !!currentAdmin?.isSuper;
+    let anyVisible = false;
+    panelTabButtons.forEach(btn => {
+      const requiresSuper = btn.dataset.role === 'super';
+      const hidden = requiresSuper && !isSuper;
+      btn.hidden = hidden;
+      if (!hidden) anyVisible = true;
+    });
+  quickTabLinks.forEach(link => {
+    const requiresSuper = link.dataset.role === 'super';
+    if (requiresSuper) {
+      if (isSuper) link.removeAttribute('hidden');
+      else link.setAttribute('hidden', '');
+    }
+  });
+    panelTabs.hidden = !anyVisible;
+    const activeVisible = panelTabButtons.find(btn => btn.classList.contains('active') && !btn.hidden);
+    const preferred = activeVisible ? activeVisible.dataset.tab : (isSuper ? 'overview' : 'coaches');
+    switchPanelTab(preferred);
+  }
+
+  function updateStats() {
+    const isSuper = !!currentAdmin?.isSuper;
+    if (statTotalAdmins) {
+      const totalAdmins = isSuper ? admins.length : (currentAdmin ? 1 : 0);
+      statTotalAdmins.textContent = String(totalAdmins);
+    }
+    if (statSuperAdmins) {
+      const superCount = isSuper
+        ? admins.filter(adm => adm.isSuper).length
+        : (currentAdmin?.isSuper ? 1 : 0);
+      statSuperAdmins.textContent = String(superCount);
+    }
+    if (statCoaches) {
+      statCoaches.textContent = String(coaches.length);
+    }
+  }
+
+  panelTabButtons.forEach(btn => {
+    btn.addEventListener('click', () => switchPanelTab(btn.dataset.tab));
+  });
+
+  quickTabLinks.forEach(link => {
+    const tab = link.dataset.switchTab;
+    if (!tab) return;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchPanelTab(tab);
+    });
+  });
 
   async function fetchBootstrapStatus() {
     const res = await fetch(`${API_BASE}/admin/bootstrap/status`);
@@ -61,21 +142,30 @@
   }
 
   async function refreshAdmins() {
-    if (!currentAdmin?.isSuper) {
+    if (!currentAdmin) {
       admins = [];
       renderAdmins();
+      updateStats();
+      return;
+    }
+    if (!currentAdmin.isSuper) {
+      admins = [];
+      renderAdmins();
+      updateStats();
       return;
     }
     const res = await apiFetch('/admins');
     if (!res.ok) throw new Error('خطا در دریافت فهرست ادمین‌ها');
     admins = await res.json();
     renderAdmins();
+    updateStats();
   }
 
   async function refreshCoaches() {
     if (!currentAdmin) {
       coaches = [];
       renderCoaches();
+      updateStats();
       return;
     }
     const res = await apiFetch('/coaches');
@@ -83,6 +173,7 @@
     const data = await res.json().catch(() => []);
     coaches = Array.isArray(data) ? data : [];
     renderCoaches();
+    updateStats();
   }
 
   function renderAdmins() {
@@ -90,6 +181,10 @@
     adminsList.innerHTML = '';
     if (!currentAdmin) {
       adminsList.innerHTML = '<div class="muted">برای مشاهده فهرست، ابتدا وارد شوید.</div>';
+      return;
+    }
+    if (!currentAdmin.isSuper) {
+      adminsList.innerHTML = '<div class="muted">برای مشاهده فهرست کامل باید دسترسی سوپر ادمین داشته باشید.</div>';
       return;
     }
     if (!admins.length) {
@@ -268,6 +363,8 @@
       await refreshAdmins();
       await loadCurrentAdmin(); // ممکن است دسترسی خود کاربر تغییر کند
       updateHeader();
+      syncTabsWithRole();
+      updateStats();
     } catch (err) {
       alert(err.message);
     }
@@ -355,6 +452,9 @@
     renderAdmins();
     renderCoaches();
     updateHeader();
+    updateStats();
+    syncTabsWithRole();
+    switchPanelTab('overview');
     initView();
   }
 
@@ -370,10 +470,12 @@
     if (hasSession) {
       setCardVisibility({ panel: true });
       updateHeader();
+      syncTabsWithRole();
       await Promise.all([
         refreshAdmins().catch(err => { console.error(err); }),
         refreshCoaches().catch(err => { console.error(err); }),
       ]);
+      updateStats();
       return;
     }
 
@@ -382,6 +484,8 @@
     coaches = [];
     renderCoaches();
     updateHeader();
+    syncTabsWithRole();
+    updateStats();
 
     if (!hasAdmin) {
       setCardVisibility({ bootstrap: true, login: false, panel: false });

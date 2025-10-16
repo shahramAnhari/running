@@ -289,144 +289,169 @@
         <section class="panel" data-panel="log" hidden>
           <div class="card">
             <h2>دفترچه تمرین روزانه</h2>
-            <div class="section-subtitle">خلاصه تحلیلی</div>
-            <div class="form-grid two charts-grid" style="margin-bottom:8px;">
-              <div>
-                <div class="hint">مسافت ۳۰ روز اخیر</div>
-                <canvas id="stDistChart" height="60"></canvas>
-              </div>
-              <div>
-                <div class="hint">پیس ۱۰ تمرین اخیر</div>
-                <canvas id="stPaceChart" height="60"></canvas>
-              </div>
-              <div>
-                <div class="hint">HR ۱۰ تمرین اخیر</div>
-                <canvas id="stHRChart" height="60"></canvas>
-              </div>
-              <div>
-                <div class="hint">حال ۱۴ روز اخیر</div>
-                <canvas id="stMoodChart" height="60"></canvas>
+            <div class="log-tabs">
+              <button type="button" class="log-tab active" data-log-view-tab="form">ثبت تمرین</button>
+              <button type="button" class="log-tab" data-log-view-tab="charts">نمودارها</button>
+            </div>
+
+            <div class="log-view" data-log-view="form">
+              <form id="logForm" class="form-stack">
+                <div class="log-section">
+                  <div class="section-subtitle">انتخاب تمرین</div>
+                  <div class="form-grid two">
+                    <label>تمرین
+                      <select id="logSession">
+                        <option value="">تمرین آزاد/سایر</option>
+                      </select>
+                    </label>
+                    <label>روز برنامه
+                      <select id="logDay">
+                        <option value="">—</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="log-meta-row">
+                    <span id="logSelectedDate" class="log-selected-date" hidden></span>
+                    <div id="logDayPreview" class="preview-box"></div>
+                  </div>
+                </div>
+
+                <div class="log-section">
+                  <div class="section-subtitle">حال و آمادگی</div>
+                  <div class="form-grid two">
+                    <label>حال عمومی (۱–۵)
+                      <select id="logMood">
+                        <option value="0">—</option>
+                        <option value="1">خیلی بد</option>
+                        <option value="2">بد</option>
+                        <option value="3">معمولی</option>
+                        <option value="4">خوب</option>
+                        <option value="5">عالی</option>
+                      </select>
+                    </label>
+                    <div>
+                      <div class="hint" style="margin-bottom:6px">حال با ایموجی</div>
+                      <div class="emoji-quick" id="emojiQuick">
+                        <button type="button" class="emoji-btn" data-emoji="😫">😫</button>
+                        <button type="button" class="emoji-btn" data-emoji="😕">😕</button>
+                        <button type="button" class="emoji-btn" data-emoji="😐">😐</button>
+                        <button type="button" class="emoji-btn" data-emoji="🙂">🙂</button>
+                        <button type="button" class="emoji-btn" data-emoji="😄">😄</button>
+                        <button type="button" class="emoji-btn" data-emoji="">پاک کردن</button>
+                      </div>
+                      <input type="hidden" id="logEmoji" />
+                    </div>
+                    <label>کیفیت خواب (۱–۵)
+                      <select id="logSleepQ">
+                        <option value="0">—</option>
+                        <option value="1">خیلی بد</option>
+                        <option value="2">بد</option>
+                        <option value="3">معمولی</option>
+                        <option value="4">خوب</option>
+                        <option value="5">عالی</option>
+                      </select>
+                    </label>
+                    <label>ساعت خواب
+                      <input type="number" id="logSleepH" min="0" step="0.5" placeholder="مثلاً 7.5" />
+                    </label>
+                    <label>تغذیه (۱–۵)
+                      <select id="logNutrition">
+                        <option value="0">—</option>
+                        <option value="1">خیلی بد</option>
+                        <option value="2">بد</option>
+                        <option value="3">معمولی</option>
+                        <option value="4">خوب</option>
+                        <option value="5">عالی</option>
+                      </select>
+                    </label>
+                    <label>RPE (۱–۱۰)
+                      <input type="number" id="logRPE" min="1" max="10" />
+                    </label>
+                  </div>
+                  <label class="checkbox-row log-completed-toggle">
+                    <input type="checkbox" id="logCompleted" />
+                    <span>این تمرین انجام شد</span>
+                  </label>
+                </div>
+
+                <div class="log-section">
+                  <div class="section-subtitle">جزئیات دویدن</div>
+                  <div class="form-grid two">
+                    <label>مسافت (کیلومتر)
+                      <input type="number" id="logDist" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+                    </label>
+                    <div>
+                      <div class="hint" style="margin-bottom:4px">زمان</div>
+                      <div class="time-group">
+                        <label>ساعت
+                          <input type="number" id="logH" min="0" inputmode="numeric" placeholder="00" />
+                        </label>
+                        <span class="sep">:</span>
+                        <label>دقیقه
+                          <input type="number" id="logM" min="0" max="59" inputmode="numeric" placeholder="00" />
+                        </label>
+                        <span class="sep">:</span>
+                        <label>ثانیه
+                          <input type="number" id="logS" min="0" max="59" inputmode="numeric" placeholder="00" />
+                        </label>
+                      </div>
+                    </div>
+                    <label>میانگین HR
+                      <input type="number" id="logHR" min="20" max="220" inputmode="numeric" placeholder="—" />
+                    </label>
+                    <div><span id="logPaceHint" class="pill"></span></div>
+                  </div>
+                </div>
+
+                <div class="log-section">
+                  <div class="section-subtitle">اطلاعات تکمیلی</div>
+                  <div class="form-grid two">
+                    <label>محل دویدن
+                      <input type="text" id="logLocation" placeholder="مثلاً پارک ملت، تردمیل..." />
+                    </label>
+                    <label>کفش
+                      <input type="text" id="logShoe" placeholder="مثلاً Nike Pegasus 39" />
+                    </label>
+                    <label>همراهان
+                      <input type="text" id="logBuddies" placeholder="مثلاً علی و مهدی" />
+                    </label>
+                  </div>
+                  <label>یادداشت
+                    <input type="text" id="logNote" placeholder="مثلاً حس زانو، باد مخالف، کفش جدید..." />
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn-primary" id="logSubmit">ثبت</button>
+                  <button type="button" class="btn-sm" id="logCancel" style="display:none">انصراف از ویرایش</button>
+                </div>
+                <input type="hidden" id="logEditingId" />
+              </form>
+            </div>
+
+            <div class="log-view" data-log-view="charts" hidden>
+              <div class="section-subtitle">خلاصه تحلیلی</div>
+                  <div class="form-grid two charts-grid">
+                <div>
+                  <div class="hint">مسافت ۳۰ روز اخیر</div>
+                  <canvas id="stDistChart" height="60"></canvas>
+                </div>
+                <div>
+                  <div class="hint">پیس ۱۰ تمرین اخیر</div>
+                  <canvas id="stPaceChart" height="60"></canvas>
+                </div>
+                <div>
+                  <div class="hint">HR ۱۰ تمرین اخیر</div>
+                  <canvas id="stHRChart" height="60"></canvas>
+                </div>
+                <div>
+                  <div class="hint">حال ۱۴ روز اخیر</div>
+                  <canvas id="stMoodChart" height="60"></canvas>
+                </div>
               </div>
             </div>
-            <form id="logForm" class="form-stack">
-              <div class="section-subtitle">انتخاب تمرین</div>
-              <div class="form-grid two">
-                <label>تمرین
-                  <select id="logSession">
-                    <option value="">تمرین آزاد/سایر</option>
-                  </select>
-                </label>
-                <label>روز برنامه
-                  <select id="logDay">
-                    <option value="">—</option>
-                  </select>
-                </label>
-              </div>
-              <div id="logDayPreview" class="preview-box" style="margin-top:6px"></div>
 
-              <div class="section-subtitle">وضعیت امروز</div>
-              <div class="form-grid two">
-                <label>حال عمومی (۱–۵)
-                  <select id="logMood">
-                    <option value="0">—</option>
-                    <option value="1">خیلی بد</option>
-                    <option value="2">بد</option>
-                    <option value="3">معمولی</option>
-                    <option value="4">خوب</option>
-                    <option value="5">عالی</option>
-                  </select>
-                </label>
-                <div>
-                  <div class="hint" style="margin-bottom:6px">حال با ایموجی</div>
-                  <div class="emoji-quick" id="emojiQuick">
-                    <button type="button" class="emoji-btn" data-emoji="😫">😫</button>
-                    <button type="button" class="emoji-btn" data-emoji="😕">😕</button>
-                    <button type="button" class="emoji-btn" data-emoji="😐">😐</button>
-                    <button type="button" class="emoji-btn" data-emoji="🙂">🙂</button>
-                    <button type="button" class="emoji-btn" data-emoji="😄">😄</button>
-                    <button type="button" class="emoji-btn" data-emoji="">پاک کردن</button>
-                  </div>
-                  <input type="hidden" id="logEmoji" />
-                </div>
-                <label>کیفیت خواب (۱–۵)
-                  <select id="logSleepQ">
-                    <option value="0">—</option>
-                    <option value="1">خیلی بد</option>
-                    <option value="2">بد</option>
-                    <option value="3">معمولی</option>
-                    <option value="4">خوب</option>
-                    <option value="5">عالی</option>
-                  </select>
-                </label>
-                <label>ساعت خواب
-                  <input type="number" id="logSleepH" min="0" step="0.5" placeholder="مثلاً 7.5" />
-                </label>
-                <label>تغذیه (۱–۵)
-                  <select id="logNutrition">
-                    <option value="0">—</option>
-                    <option value="1">خیلی بد</option>
-                    <option value="2">بد</option>
-                    <option value="3">معمولی</option>
-                    <option value="4">خوب</option>
-                    <option value="5">عالی</option>
-                  </select>
-                </label>
-                <label>RPE (۱–۱۰)
-                  <input type="number" id="logRPE" min="1" max="10" />
-                </label>
-              </div>
-
-              <div class="section-subtitle">جزئیات دویدن</div>
-              <div class="form-grid two">
-                <label>مسافت (کیلومتر)
-                  <input type="number" id="logDist" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
-                </label>
-                <div>
-                  <div class="hint" style="margin-bottom:4px">زمان</div>
-                  <div class="time-group">
-                    <label>ساعت
-                      <input type="number" id="logH" min="0" inputmode="numeric" placeholder="00" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>دقیقه
-                      <input type="number" id="logM" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                    <span class="sep">:</span>
-                    <label>ثانیه
-                      <input type="number" id="logS" min="0" max="59" inputmode="numeric" placeholder="00" />
-                    </label>
-                  </div>
-                </div>
-                <label>میانگین HR
-                  <input type="number" id="logHR" min="20" max="220" inputmode="numeric" placeholder="—" />
-                </label>
-                <div><span id="logPaceHint" class="pill"></span></div>
-              </div>
-
-              <div class="section-subtitle">اطلاعات تکمیلی</div>
-              <div class="form-grid two">
-                <label>محل دویدن
-                  <input type="text" id="logLocation" placeholder="مثلاً پارک ملت، تردمیل..." />
-                </label>
-                <label>کفش
-                  <input type="text" id="logShoe" placeholder="مثلاً Nike Pegasus 39" />
-                </label>
-                <label>همراهان
-                  <input type="text" id="logBuddies" placeholder="مثلاً علی و مهدی" />
-                </label>
-              </div>
-
-              <label>یادداشت
-                <input type="text" id="logNote" placeholder="مثلاً حس زانو، باد مخالف، کفش جدید..." />
-              </label>
-              <div class="row">
-                <button type="submit" id="logSubmit">ثبت</button>
-                <button type="button" id="logCancel" class="btn-sm" style="display:none">انصراف از ویرایش</button>
-              </div>
-              <input type="hidden" id="logEditingId" />
-            </form>
-
-            <div id="logList" class="list" style="margin-top:10px"></div>
+            <div id="logList" class="list log-history"></div>
           </div>
         </section>
 
@@ -446,7 +471,7 @@
                   </select>
                 </label>
                 <label>تاریخ تولد (شمسی)
-                  <div class="j-date" id="pJDate">
+                  <div class="j-date" id="pJDate" data-min-year="1340" data-max-year="1400">
                     <input type="text" id="profBirthJalali" placeholder="مثلاً 1375/02/10" readonly />
                     <input type="hidden" id="profBirthISO" />
                     <button type="button" id="pJDateToggle">انتخاب</button>
@@ -454,6 +479,7 @@
                       <div class="j-header">
                         <button type="button" id="pPrev">«</button>
                         <span id="pYMLabel"></span>
+                        <select id="pYearSelect"></select>
                         <button type="button" id="pNext">»</button>
                       </div>
                       <div class="j-days" id="pDays"></div>
@@ -465,6 +491,9 @@
                 </label>
                 <label>قد (سانتی‌متر)
                   <input type="number" id="profHeight" inputmode="decimal" step="0.5" min="0" />
+                </label>
+                <label>لینک استراوا
+                  <input type="url" id="profStrava" placeholder="https://www.strava.com/athletes/..." />
                 </label>
               </div>
 
@@ -478,7 +507,7 @@
 
               <div id="femaleOnly" class="form-grid two" style="margin-top:8px; display:none;">
                 <label>آخرین تاریخ تقریبی سیکل (شمسی)
-                  <div class="j-date" id="cJDate">
+                  <div class="j-date" id="cJDate" data-min-year="1340" data-max-year="1500">
                     <input type="text" id="cycleJalali" placeholder="مثلاً 1403/07/01" readonly />
                     <input type="hidden" id="cycleISO" />
                     <button type="button" id="cJDateToggle">انتخاب</button>
@@ -486,9 +515,42 @@
                       <div class="j-header">
                         <button type="button" id="cPrev">«</button>
                         <span id="cYMLabel"></span>
+                        <select id="cYearSelect"></select>
                         <button type="button" id="cNext">»</button>
                       </div>
                       <div class="j-days" id="cDays"></div>
+                    </div>
+                  </div>
+                </label>
+                <label>شروع دوره (شمسی)
+                  <div class="j-date" id="periodStartJDate" data-min-year="1340" data-max-year="1500">
+                    <input type="text" id="periodStartJalali" placeholder="مثلاً 1403/01/01" readonly />
+                    <input type="hidden" id="periodStartISO" />
+                    <button type="button" id="periodStartJDateToggle">انتخاب</button>
+                    <div class="j-popup" id="periodStartJDatePopup" hidden>
+                      <div class="j-header">
+                        <button type="button" id="periodStartPrev">«</button>
+                        <span id="periodStartYMLabel"></span>
+                        <select id="periodStartYearSelect"></select>
+                        <button type="button" id="periodStartNext">»</button>
+                      </div>
+                      <div class="j-days" id="periodStartDays"></div>
+                    </div>
+                  </div>
+                </label>
+                <label>پایان دوره (شمسی)
+                  <div class="j-date" id="periodEndJDate" data-min-year="1340" data-max-year="1500">
+                    <input type="text" id="periodEndJalali" placeholder="مثلاً 1403/01/10" readonly />
+                    <input type="hidden" id="periodEndISO" />
+                    <button type="button" id="periodEndJDateToggle">انتخاب</button>
+                    <div class="j-popup" id="periodEndJDatePopup" hidden>
+                      <div class="j-header">
+                        <button type="button" id="periodEndPrev">«</button>
+                        <span id="periodEndYMLabel"></span>
+                        <select id="periodEndYearSelect"></select>
+                        <button type="button" id="periodEndNext">»</button>
+                      </div>
+                      <div class="j-days" id="periodEndDays"></div>
                     </div>
                   </div>
                 </label>

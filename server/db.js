@@ -119,6 +119,7 @@ function ensureSchema() {
       assignment_id TEXT,
       program_id TEXT,
       day_key TEXT,
+      completed INTEGER DEFAULT 0,
       mood INTEGER,
       mood_emoji TEXT,
       sleep_quality INTEGER,
@@ -187,6 +188,8 @@ function ensureSchema() {
   ensureColumn('payments', 'month_jalali', 'TEXT');
 
   ensureColumn('logs', 'hydration', 'REAL');
+  ensureColumn('logs', 'completed', 'INTEGER');
+  db.prepare('UPDATE logs SET completed = 0 WHERE completed IS NULL').run();
 
   ensureColumn('coaches', 'last_login_at', 'TEXT');
 }
@@ -1105,6 +1108,7 @@ function rowToLog(row) {
     assignmentId: row.assignment_id,
     programId: row.program_id,
     dayKey: row.day_key,
+    completed: !!row.completed,
     mood: row.mood,
     moodEmoji: row.mood_emoji,
     sleepQuality: row.sleep_quality,
@@ -1134,11 +1138,11 @@ function addLog(studentId, payload) {
   const ts = now();
   db.prepare(`
     INSERT INTO logs(
-      id, student_id, date, assignment_id, program_id, day_key,
+      id, student_id, date, assignment_id, program_id, day_key, completed,
       mood, mood_emoji, sleep_quality, sleep_hours, nutrition, hydration, rpe,
       distance_km, duration_sec, hr_avg, location, shoe, companions, note,
       created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     id,
     studentId,
@@ -1146,6 +1150,7 @@ function addLog(studentId, payload) {
     payload.assignmentId || null,
     payload.programId || null,
     payload.dayKey || null,
+    payload.completed ? 1 : 0,
     payload.mood != null ? Number(payload.mood) : null,
     payload.moodEmoji || null,
     payload.sleepQuality != null ? Number(payload.sleepQuality) : null,
@@ -1172,7 +1177,7 @@ function updateLog(id, patch) {
   const ts = now();
   db.prepare(`
     UPDATE logs SET
-      date = ?, assignment_id = ?, program_id = ?, day_key = ?,
+      date = ?, assignment_id = ?, program_id = ?, day_key = ?, completed = ?,
       mood = ?, mood_emoji = ?, sleep_quality = ?, sleep_hours = ?, nutrition = ?, hydration = ?, rpe = ?,
       distance_km = ?, duration_sec = ?, hr_avg = ?, location = ?, shoe = ?, companions = ?, note = ?, updated_at = ?
     WHERE id = ?
@@ -1181,6 +1186,7 @@ function updateLog(id, patch) {
     patch.assignmentId ?? current.assignment_id,
     patch.programId ?? current.program_id,
     patch.dayKey ?? current.day_key,
+    patch.completed != null ? (patch.completed ? 1 : 0) : (current.completed ? 1 : 0),
     patch.mood != null ? Number(patch.mood) : current.mood,
     patch.moodEmoji ?? current.mood_emoji,
     patch.sleepQuality != null ? Number(patch.sleepQuality) : current.sleep_quality,

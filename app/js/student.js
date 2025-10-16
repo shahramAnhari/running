@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const logNutrition = document.getElementById('logNutrition');
   const logRPE = document.getElementById('logRPE');
   const logEmoji = document.getElementById('logEmoji');
+  const logCompleted = document.getElementById('logCompleted');
   const logLocation = document.getElementById('logLocation');
   const logShoe = document.getElementById('logShoe');
   const logBuddies = document.getElementById('logBuddies');
@@ -100,6 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const stPaceChart = document.getElementById('stPaceChart');
   const stHRChart = document.getElementById('stHRChart');
   const stMoodChart = document.getElementById('stMoodChart');
+  const logSelectedDateBadge = document.getElementById('logSelectedDate');
+  const logTabButtons = document.querySelectorAll('[data-log-view-tab]');
+  const logViews = document.querySelectorAll('[data-log-view]');
   // Profile
   const profileForm = document.getElementById('profileForm');
   const profName = document.getElementById('profName');
@@ -111,6 +115,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const femaleOnly = document.getElementById('femaleOnly');
   const cycleJalali = document.getElementById('cycleJalali');
   const cycleISO = document.getElementById('cycleISO');
+  const periodStartJalali = document.getElementById('periodStartJalali');
+  const periodStartISO = document.getElementById('periodStartISO');
+  const periodEndJalali = document.getElementById('periodEndJalali');
+  const periodEndISO = document.getElementById('periodEndISO');
+  const profStrava = document.getElementById('profStrava');
   const profDocFile = document.getElementById('profDocFile');
   const profUpload = document.getElementById('profUpload');
   const profDocs = document.getElementById('profDocs');
@@ -350,8 +359,10 @@ document.addEventListener('DOMContentLoaded', () => {
     await renderStudentCharts();
     initJDatePicker('p');
     initJDatePicker('c');
+    initJDatePicker('periodStart');
+    initJDatePicker('periodEnd');
     await renderProfile();
-      updateHeaderFromProfile();
+    updateHeaderFromProfile();
   }
 
   logoutBtn?.addEventListener('click', handleLogout);
@@ -370,13 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     studentPrograms.innerHTML = '';
 
     const logs = await DB.listLogsForStudent(currentStudent.id) || [];
-    const moodByDate = new Map();
-    logs.forEach(log => {
-      const iso = String(log.date || '').slice(0, 10);
-      if (!iso) return;
-      const emoji = log.moodEmoji || scaleToEmoji(log.mood);
-      if (emoji) moodByDate.set(iso, emoji);
-    });
+    const logEntries = Array.isArray(logs) ? logs : [];
 
     const renderAssignmentCard = (program, assignment) => {
       const week = Array.isArray(program.week) ? program.week : DB.defaultWeek();
@@ -396,21 +401,59 @@ document.addEventListener('DOMContentLoaded', () => {
       const table = document.createElement('div');
       table.className = 'program-week';
       const todayIdx = mapJsDayToSatFirst(new Date().getDay());
+      const assignmentId = assignment?.id || '';
+      const programId = program?.id || '';
 
       week.forEach((day, idx) => {
         const dateISO = addDaysISO(startISO, idx);
         const content = String(day.content || '').trim();
-        const moodEmoji = moodByDate.get(dateISO) || '–';
+        const rowLog = findMatchingLog(logEntries, {
+          assignmentId,
+          programId,
+          dayKey: day.key,
+          dateISO,
+        });
+        const moodEmoji = rowLog ? (rowLog.moodEmoji || scaleToEmoji(rowLog.mood) || '') : '';
+        const moodDisplay = moodEmoji || (rowLog && rowLog.mood ? scaleLabel(rowLog.mood) : '–');
+        const moodTitle = rowLog
+          ? (rowLog.moodEmoji ? `حال انتخابی: ${rowLog.moodEmoji}` : `حال ثبت‌شده: ${scaleLabel(rowLog.mood)}`)
+          : 'حال ثبت نشده';
+        const completed = !!rowLog?.completed;
+        const effectiveDateISO = rowLog?.date || dateISO;
         const row = document.createElement('div');
         row.className = 'program-week-row';
         if (idx === todayIdx) row.classList.add('today');
 
         row.innerHTML = `
-          <div class="program-week-date">${escapeHtml(formatJalaliDate(dateISO))}</div>
+          <div class="program-week-date">${escapeHtml(formatJalaliDate(effectiveDateISO))}</div>
           <div class="program-week-label">${escapeHtml(day.label)}</div>
           <div class="program-week-desc">${content ? escapeHtml(content) : '<span class="muted">بدون برنامه</span>'}</div>
-          <div class="program-week-mood">${escapeHtml(moodEmoji)}</div>
-          <div class="program-week-actions"><button type="button" class="btn-link" data-log-day="${day.key}" data-log-date="${dateISO}">دفترچه تمرین</button></div>
+          <div class="program-week-mood" title="${escapeHtml(moodTitle)}">${escapeHtml(moodDisplay)}</div>
+          <div class="program-week-actions">
+            <button type="button"
+              class="status-toggle ${completed ? 'done' : ''}"
+              data-status-toggle="1"
+              data-log-id="${rowLog?.id || ''}"
+              data-program-id="${programId}"
+              data-assignment-id="${assignmentId}"
+              data-log-date="${effectiveDateISO}"
+              data-day-key="${day.key}"
+              data-completed="${completed ? '1' : '0'}"
+              title="${escapeHtml(completed ? 'علامت‌گذاری به عنوان انجام نشده' : 'علامت‌گذاری به عنوان انجام شد')}"
+              aria-label="${escapeHtml(completed ? 'علامت‌گذاری به عنوان انجام نشده' : 'علامت‌گذاری به عنوان انجام شد')}">
+              <span class="status-emoji">${completed ? '✅' : '⏱️'}</span>
+              <span class="status-text">${escapeHtml(completed ? 'انجام شد' : 'انجام نشده')}</span>
+            </button>
+            <button type="button"
+              class="btn-link"
+              data-log-day="${day.key}"
+              data-log-date="${effectiveDateISO}"
+              data-program-id="${programId}"
+              data-assignment-id="${assignmentId}"
+              data-log-id="${rowLog?.id || ''}">
+              دفترچه تمرین
+            </button>
+          </div>
         `;
         table.appendChild(row);
       });
@@ -433,8 +476,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     studentPrograms.querySelectorAll('[data-log-day]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const dayKey = btn.getAttribute('data-log-day');
-        openLogForDay(dayKey);
+        openLogForDay({
+          dayKey: btn.dataset.logDay || '',
+          dateISO: btn.dataset.logDate || '',
+          assignmentId: btn.dataset.assignmentId || '',
+          programId: btn.dataset.programId || '',
+          logId: btn.dataset.logId || '',
+        });
+      });
+    });
+
+    studentPrograms.querySelectorAll('[data-status-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.pending === '1') return;
+        btn.dataset.pending = '1';
+        btn.disabled = true;
+        toggleProgramDayCompletion({
+          logId: btn.dataset.logId || '',
+          assignmentId: btn.dataset.assignmentId || '',
+          programId: btn.dataset.programId || '',
+          dayKey: btn.dataset.dayKey || '',
+          dateISO: btn.dataset.logDate || '',
+          completed: btn.dataset.completed === '1',
+        }).finally(() => {
+          delete btn.dataset.pending;
+          btn.disabled = false;
+        });
       });
     });
   }
@@ -496,6 +563,86 @@ document.addEventListener('DOMContentLoaded', () => {
   // Training log
   function initLogDefaults(){
     // No date input; logs are timestamped as today internally
+  }
+
+  function fillLogForm(log, overrides = {}) {
+    if (!logForm) return;
+    logForm.reset();
+    initLogDefaults();
+
+    const assignmentId = overrides.assignmentId || log?.assignmentId || '';
+    const programId = overrides.programId || log?.programId || '';
+    const dayKey = overrides.dayKey || log?.dayKey || '';
+    const dateISOOverride = overrides.dateISO || '';
+    const baseDateISO = log?.date || '';
+    const pendingDateISO = dateISOOverride || baseDateISO || new Date().toISOString().slice(0, 10);
+    if (logForm) {
+      logForm.dataset.pendingDate = pendingDateISO;
+    }
+    if (logSelectedDateBadge) {
+      const shouldShowDate = !!(dateISOOverride || baseDateISO);
+      if (shouldShowDate) {
+        logSelectedDateBadge.hidden = false;
+        logSelectedDateBadge.textContent = `تاریخ تمرین: ${formatJalaliDate(pendingDateISO)}`;
+      } else {
+        logSelectedDateBadge.hidden = true;
+        logSelectedDateBadge.textContent = '';
+      }
+    }
+
+    if (logEditingId) logEditingId.value = log?.id || '';
+    if (logSubmit) logSubmit.textContent = log ? 'ویرایش' : 'ثبت';
+    if (logCancel) logCancel.style.display = log ? '' : 'none';
+
+    populateLogSessionOptions();
+    if (logSession) {
+      if (assignmentId) {
+        logSession.value = `asg:${assignmentId}`;
+      } else if (programId) {
+        logSession.value = `prg:${programId}`;
+      } else {
+        logSession.value = '';
+      }
+    }
+    updateSessionDayUI();
+    if (logDay) {
+      if (dayKey && Array.from(logDay.options).some(opt => opt.value === dayKey)) {
+        logDay.value = dayKey;
+      } else {
+        logDay.value = '';
+      }
+      logDay.dispatchEvent(new Event('change'));
+    }
+
+    if (logMood) logMood.value = String(log?.mood || 0);
+    if (logSleepQ) logSleepQ.value = String(log?.sleepQuality || 0);
+    if (logSleepH) logSleepH.value = log?.sleepHours != null ? String(log.sleepHours) : '';
+    if (logNutrition) logNutrition.value = String(log?.nutrition || 0);
+    if (logRPE) logRPE.value = log?.rpe != null ? String(log.rpe) : '';
+    if (logDist) logDist.value = log?.distanceKm != null ? String(log.distanceKm) : '';
+
+    const durationSec = Number(log?.durationSec || 0);
+    const h = Math.floor(durationSec / 3600);
+    const m = Math.floor((durationSec % 3600) / 60);
+    const s = Math.floor(durationSec % 60);
+    if (logH) logH.value = h ? String(h) : '';
+    if (logM) logM.value = m ? String(m) : '';
+    if (logS) logS.value = s ? String(s) : '';
+    if (logHR) logHR.value = log?.hrAvg != null ? String(log.hrAvg) : '';
+
+    const emojiVal = log?.moodEmoji || '';
+    if (logEmoji) logEmoji.value = emojiVal;
+    syncEmojiQuickButtons(emojiVal);
+
+    if (logLocation) logLocation.value = log?.location || '';
+    if (logShoe) logShoe.value = log?.shoe || '';
+    if (logBuddies) logBuddies.value = log?.companions || '';
+    if (logNote) logNote.value = log?.note || '';
+
+    if (logCompleted) {
+      const completedOverride = overrides.completed;
+      logCompleted.checked = completedOverride != null ? !!completedOverride : !!log?.completed;
+    }
   }
 
   function populateLogSessionOptions(){
@@ -585,18 +732,47 @@ document.addEventListener('DOMContentLoaded', () => {
     el.textContent = t ? `برنامه روز: ${t}` : '';
   }
 
+  function syncEmojiQuickButtons(value){
+    if (!emojiQuick) return;
+    const normalized = value || '';
+    emojiQuick.querySelectorAll('.emoji-btn')?.forEach(btn => {
+      const val = btn.getAttribute('data-emoji') || '';
+      btn.classList.toggle('active', val === normalized && val !== '');
+    });
+  }
+
   function initEmojiQuick(){
     if(!emojiQuick) return;
     emojiQuick.querySelectorAll('.emoji-btn')?.forEach(btn => {
       btn.addEventListener('click', ()=>{
         const val = btn.getAttribute('data-emoji') || '';
-        const inp = document.getElementById('logEmoji');
-        if(inp) inp.value = val;
-        emojiQuick.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('active'));
-        if(val) btn.classList.add('active');
+        if (logEmoji) logEmoji.value = val;
+        syncEmojiQuickButtons(val);
       });
     });
   }
+
+  function switchLogView(target) {
+    if (!logViews.length) return;
+    const desired = target && Array.from(logViews).some(view => view.dataset.logView === target)
+      ? target
+      : (logViews[0].dataset.logView || 'form');
+    logViews.forEach(view => {
+      view.hidden = view.dataset.logView !== desired;
+    });
+    logTabButtons.forEach(btn => {
+      const isActive = btn.dataset.logViewTab === desired;
+      btn.classList.toggle('active', isActive);
+    });
+    if (desired === 'charts') {
+      renderStudentCharts().catch(err => console.error(err));
+    }
+  }
+
+  logTabButtons.forEach(btn => {
+    btn.addEventListener('click', () => switchLogView(btn.dataset.logViewTab));
+  });
+  if (logViews.length) switchLogView('form');
 
   logSession?.addEventListener('change', ()=>{ updateSessionDayUI(); });
   logDay?.addEventListener('change', ()=>{
@@ -624,7 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
   logForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!currentStudent) return;
-    const date = new Date().toISOString().slice(0,10);
+    const date = (logForm?.dataset.pendingDate || new Date().toISOString().slice(0,10));
     const mood = Number(logMood?.value || 0);
     const sleepQuality = Number(logSleepQ?.value || 0);
     const sleepHours = logSleepH?.value ? Number(logSleepH.value) : null;
@@ -640,6 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hrAvg = logHR?.value ? Number(logHR.value) : null;
     const note = logNote?.value || '';
     const editingId = logEditingId?.value || '';
+    const completed = !!logCompleted?.checked;
     // parse selected session
     let assignmentId = null, programId = null;
     const sel = String(logSession?.value || '');
@@ -653,9 +830,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       if (editingId) {
-        await DB.updateLog(editingId, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
+        await DB.updateLog(editingId, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, completed, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
       } else {
-        await DB.addLog(currentStudent.id, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
+        await DB.addLog(currentStudent.id, { date, assignmentId, programId, dayKey: (logDay?.value||null)||null, completed, mood, moodEmoji, sleepQuality, sleepHours, nutrition, rpe, distanceKm: dist, durationSec, hrAvg, location, shoe, companions, note });
       }
     } catch (err) {
       console.error(err);
@@ -663,20 +840,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // reset minimal
-    logEditingId.value = '';
-    logSubmit.textContent = 'ثبت';
-    logCancel.style.display = 'none';
-    logNote.value = '';
+    switchLogView('form');
+    fillLogForm(null);
     await renderLogs();
+    await renderPrograms();
   });
 
   logCancel?.addEventListener('click', () => {
-    logEditingId.value = '';
-    logSubmit.textContent = 'ثبت';
-    logCancel.style.display = 'none';
-    logForm?.reset();
-    initLogDefaults();
+    switchLogView('form');
+    fillLogForm(null);
   });
 
   async function renderLogs(){
@@ -690,7 +862,8 @@ document.addEventListener('DOMContentLoaded', () => {
       el.className = 'item';
       const pTitle = l.programId && pMap.get(l.programId) ? pMap.get(l.programId).title : 'تمرین آزاد';
       const chips = [
-        (l.moodEmoji? chip('حال', l.moodEmoji) : chip('حال', scaleLabel(l.mood))),
+        chip('وضعیت', l.completed ? '✅ انجام شد' : '⏱️ انجام نشده'),
+        (l.moodEmoji ? chip('حال', l.moodEmoji) : (l.mood ? chip('حال', scaleLabel(l.mood)) : '')),
         chip('خواب', scaleLabel(l.sleepQuality)),
         (l.sleepHours!=null? chip('ساعت خواب', String(l.sleepHours)) : ''),
         chip('تغذیه', scaleLabel(l.nutrition)),
@@ -725,44 +898,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const logs = await DB.listLogsForStudent(currentStudent.id);
         const l = logs.find(x => x.id === id);
         if (!l) return;
-        logEditingId.value = l.id;
-        // select session
-        if (logSession){
-          populateLogSessionOptions();
-          if(l.assignmentId) logSession.value = `asg:${l.assignmentId}`;
-          else if(l.programId) logSession.value = `prg:${l.programId}`;
-          else logSession.value = '';
-          updateSessionDayUI();
-          if(logDay && l.dayKey) logDay.value = l.dayKey;
-        }
-        if (logMood) logMood.value = String(l.mood || 0);
-        if (logSleepQ) logSleepQ.value = String(l.sleepQuality || 0);
-        if (logSleepH) logSleepH.value = l.sleepHours != null ? String(l.sleepHours) : '';
-        if (logNutrition) logNutrition.value = String(l.nutrition || 0);
-        if (logRPE) logRPE.value = l.rpe != null ? String(l.rpe) : '';
-        if (logDist) logDist.value = l.distanceKm != null ? String(l.distanceKm) : '';
-        const h = Math.floor((l.durationSec||0)/3600), m = Math.floor(((l.durationSec||0)%3600)/60), s = Math.floor((l.durationSec||0)%60);
-        if (logH) logH.value = h ? String(h) : '';
-        if (logM) logM.value = m ? String(m) : '';
-        if (logS) logS.value = s ? String(s) : '';
-        if (logHR) logHR.value = l.hrAvg != null ? String(l.hrAvg) : '';
-        const emojiInp = document.getElementById('logEmoji');
-        if (emojiInp) {
-          emojiInp.value = l.moodEmoji || '';
-          // reflect in quick bar
-          if (emojiQuick){
-            emojiQuick.querySelectorAll('.emoji-btn').forEach(b=>{
-              const val = b.getAttribute('data-emoji') || '';
-              b.classList.toggle('active', val === emojiInp.value && val !== '');
-            });
-          }
-        }
-        if (logLocation) logLocation.value = l.location || '';
-        if (logShoe) logShoe.value = l.shoe || '';
-        if (logBuddies) logBuddies.value = l.companions || '';
-        if (logNote) logNote.value = l.note || '';
-        logSubmit.textContent = 'ویرایش';
-        logCancel.style.display = '';
+        fillLogForm(l);
+        activatePanel('log');
       });
     });
     logList.querySelectorAll('[data-del-log]')?.forEach(btn => {
@@ -1043,22 +1180,31 @@ document.addEventListener('DOMContentLoaded', () => {
     profName.value = currentStudent.name || '';
     const p = DB.getStudentProfile(currentStudent.id) || {};
     profGender.value = p.gender || '';
-    profBirthISO.value = p.birthISO || '';
-    profBirthJalali.value = '';
-    if (p.birthISO){ const d = parseISODate(p.birthISO); const j = Jalali.toJalali(d.getFullYear(), d.getMonth()+1, d.getDate()); profBirthJalali.value = `${j.jy}/${String(j.jm).padStart(2,'0')}/${String(j.jd).padStart(2,'0')}`; }
+    setJalaliField(profBirthJalali, profBirthISO, p.birthISO);
     profWeight.value = (p.weightKg != null) ? String(p.weightKg) : '';
     profHeight.value = (p.heightCm != null) ? String(p.heightCm) : '';
-    cycleISO.value = p.cycleApproxISO || '';
-    cycleJalali.value = '';
-    if (p.cycleApproxISO){ const d2 = parseISODate(p.cycleApproxISO); const j2 = Jalali.toJalali(d2.getFullYear(), d2.getMonth()+1, d2.getDate()); cycleJalali.value = `${j2.jy}/${String(j2.jm).padStart(2,'0')}/${String(j2.jd).padStart(2,'0')}`; }
+    setJalaliField(cycleJalali, cycleISO, p.cycleApproxISO);
+    setJalaliField(periodStartJalali, periodStartISO, p.periodStartISO);
+    setJalaliField(periodEndJalali, periodEndISO, p.periodEndISO);
     if (femaleOnly) femaleOnly.style.display = (profGender.value === 'female') ? '' : 'none';
     if (profAvatar) profAvatar.src = p.photoDataUrl || '';
+    if (profStrava) profStrava.value = p.stravaUrl || '';
     await renderMedicalDocs();
   }
   profGender?.addEventListener('change', ()=>{ if(femaleOnly) femaleOnly.style.display = (profGender.value === 'female') ? '' : 'none'; });
   profileForm?.addEventListener('submit', async (e)=>{
     e.preventDefault(); if(!currentStudent) return;
-    const patch = { gender: profGender.value || null, birthISO: profBirthISO.value || null, weightKg: profWeight.value ? Number(profWeight.value) : null, heightCm: profHeight.value ? Number(profHeight.value) : null, cycleApproxISO: cycleISO.value || null };
+    const stravaValue = profStrava?.value ? profStrava.value.trim() : '';
+    const patch = {
+      gender: profGender.value || null,
+      birthISO: profBirthISO.value || null,
+      weightKg: profWeight.value ? Number(profWeight.value) : null,
+      heightCm: profHeight.value ? Number(profHeight.value) : null,
+      cycleApproxISO: cycleISO.value || null,
+      periodStartISO: periodStartISO?.value || null,
+      periodEndISO: periodEndISO?.value || null,
+      stravaUrl: stravaValue || null,
+    };
     const newName = (profName.value || '').trim() || currentStudent.name;
     try {
       await DB.updateStudent(currentStudent.id, { name: newName });
@@ -1642,6 +1788,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const [y,m,d] = String(iso||'').split('-').map(v=>parseInt(v,10));
     return new Date(y||1970, (m||1)-1, d||1, 12, 0, 0, 0);
   }
+
+  function isoToJalaliText(iso) {
+    if (!iso) return '';
+    const d = parseISODate(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const j = Jalali.toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    return `${j.jy}/${String(j.jm).padStart(2, '0')}/${String(j.jd).padStart(2, '0')}`;
+  }
+
+  function setJalaliField(displayInput, hiddenInput, iso) {
+    if (hiddenInput) hiddenInput.value = iso || '';
+    if (displayInput) displayInput.value = isoToJalaliText(iso);
+  }
   // Jalali date picker (for profile dates)
   function initJDatePicker(prefix){
     const root = document.getElementById(prefix + 'JDate');
@@ -1654,16 +1813,102 @@ document.addEventListener('DOMContentLoaded', () => {
     const next = document.getElementById(prefix + 'Next');
     const ymLabel = document.getElementById(prefix + 'YMLabel');
     const daysWrap = document.getElementById(prefix + 'Days');
+    const yearSelect = document.getElementById(prefix + 'YearSelect');
+    const minYear = Number(root.dataset.minYear || '1300');
+    const maxYear = Number(root.dataset.maxYear || '1500');
     if(!txt || !hidden || !toggle || !popup || !prev || !next || !ymLabel || !daysWrap) return;
     const today = new Date();
     let j = Jalali.toJalali(today.getFullYear(), today.getMonth()+1, today.getDate());
-    let jy=j.jy, jm=j.jm, jd=j.jd;
-    function setSelected(jy0,jm0,jd0){ jy=jy0; jm=jm0; jd=jd0; txt.value = `${jy}/${String(jm).padStart(2,'0')}/${String(jd).padStart(2,'0')}`; const g=Jalali.toGregorian(jy, jm, jd); const iso=`${g.gy}-${String(g.gm).padStart(2,'0')}-${String(g.gd).padStart(2,'0')}`; hidden.value=iso; }
-    function render(){ ymLabel.textContent = `${jy} ${Jalali.monthNames[jm-1]}`; daysWrap.innerHTML=''; daysWrap.className='j-days'; const gFirst=Jalali.toGregorian(jy, jm, 1); const dFirst=new Date(gFirst.gy, gFirst.gm-1, gFirst.gd); const jsStart=dFirst.getDay(); const satFirst={6:0,0:1,1:2,2:3,3:4,4:5,5:6}[jsStart] ?? 0; for(let i=0;i<satFirst;i++){ const b=document.createElement('div'); b.className='j-day blank'; daysWrap.appendChild(b);} const daysInMonth=jMonthDays(jy,jm); for(let d=1; d<=daysInMonth; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='j-day'; btn.textContent=d; if(d===jd) btn.classList.add('selected'); btn.onclick=()=>{ setSelected(jy,jm,d); popup.hidden=true; }; daysWrap.appendChild(btn);} }
+    let jy = clampYear(j.jy);
+    let jm = j.jm;
+    let jd = j.jd;
+
+    function clampYear(value) {
+      return Math.min(maxYear, Math.max(minYear, value));
+    }
+
+    function populateYearSelect() {
+      if (!yearSelect) return;
+      yearSelect.innerHTML = '';
+      for (let y = maxYear; y >= minYear; y--) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        yearSelect.appendChild(opt);
+      }
+    }
+
+    function setSelected(jy0,jm0,jd0){
+      jy = clampYear(jy0);
+      jm = Math.min(12, Math.max(1, jm0));
+      jd = jd0;
+      if (yearSelect) yearSelect.value = String(jy);
+      txt.value = `${jy}/${String(jm).padStart(2,'0')}/${String(jd).padStart(2,'0')}`;
+      const g=Jalali.toGregorian(jy, jm, jd);
+      const iso=`${g.gy}-${String(g.gm).padStart(2,'0')}-${String(g.gd).padStart(2,'0')}`;
+      hidden.value=iso;
+    }
+
+    function render(){
+      ymLabel.textContent = `${Jalali.monthNames[jm-1]} ${jy}`;
+      if (yearSelect) yearSelect.value = String(jy);
+      daysWrap.innerHTML='';
+      daysWrap.className='j-days';
+      const gFirst=Jalali.toGregorian(jy, jm, 1);
+      const dFirst=new Date(gFirst.gy, gFirst.gm-1, gFirst.gd);
+      const jsStart=dFirst.getDay();
+      const satFirst={6:0,0:1,1:2,2:3,3:4,4:5,5:6}[jsStart] ?? 0;
+      for(let i=0;i<satFirst;i++){
+        const b=document.createElement('div');
+        b.className='j-day blank';
+        daysWrap.appendChild(b);
+      }
+      const daysInMonth=jMonthDays(jy,jm);
+      if (jd > daysInMonth) {
+        jd = daysInMonth;
+      }
+      for(let d=1; d<=daysInMonth; d++){
+        const btn=document.createElement('button');
+        btn.type='button'; btn.className='j-day'; btn.textContent=d;
+        if(d===jd) btn.classList.add('selected');
+        btn.onclick=()=>{ setSelected(jy,jm,d); popup.hidden=true; render(); };
+        daysWrap.appendChild(btn);
+      }
+      prev.disabled = jy <= minYear && jm === 1;
+      next.disabled = jy >= maxYear && jm === 12;
+    }
     function jMonthDays(jy,jm){ const g1=Jalali.toGregorian(jy,jm,1); const jy2=jm===12?jy+1:jy; const jm2=jm===12?1:jm+1; const g2=Jalali.toGregorian(jy2,jm2,1); const d1=new Date(g1.gy,g1.gm-1,g1.gd); const d2=new Date(g2.gy,g2.gm-1,g2.gd); return Math.round((d2-d1)/86400000); }
+    if (yearSelect) {
+      populateYearSelect();
+      yearSelect.addEventListener('change', () => {
+        const selected = clampYear(Number(yearSelect.value));
+        if (selected !== jy) {
+          jy = selected;
+          render();
+        }
+      });
+    }
     toggle.onclick=()=>{ popup.hidden = !popup.hidden; };
-    prev.onclick=()=>{ if(jm===1){ jm=12; jy--; } else { jm--; } render(); };
-    next.onclick=()=>{ if(jm===12){ jm=1; jy++; } else { jm++; } render(); };
+    prev.onclick=()=>{
+      if (jm === 1) {
+        if (jy <= minYear) return;
+        jm = 12;
+        jy = clampYear(jy - 1);
+      } else {
+        jm--;
+      }
+      render();
+    };
+    next.onclick=()=>{
+      if (jm === 12) {
+        if (jy >= maxYear) return;
+        jm = 1;
+        jy = clampYear(jy + 1);
+      } else {
+        jm++;
+      }
+      render();
+    };
     document.addEventListener('click', (e)=>{ if(root && !root.contains(e.target)) popup.hidden = true; });
     setSelected(jy,jm,jd); render();
   }
@@ -1677,3 +1922,133 @@ document.addEventListener('DOMContentLoaded', () => {
     alert('خطا در بارگذاری داده‌ها. لطفاً دوباره تلاش کنید.');
   });
 });
+  function findMatchingLog(logs, { logId, assignmentId, programId, dayKey, dateISO }) {
+    if (!Array.isArray(logs) || !logs.length) return null;
+    const normalizedAssignment = assignmentId || '';
+    const normalizedProgram = programId || '';
+    const normalizedDay = dayKey || '';
+    const normalizedDate = dateISO || '';
+
+    if (logId) {
+      const byId = logs.find(l => l.id === logId);
+      if (byId) return byId;
+    }
+
+    const filtered = normalizedDate
+      ? logs.filter(l => (l.date || '') === normalizedDate)
+      : logs.slice();
+    const eq = (a, b) => (a || '') === (b || '');
+    const runSearch = (source) => {
+      if (!source.length) return null;
+      if (normalizedAssignment && normalizedProgram && normalizedDay) {
+        const found = source.find(l =>
+          eq(l.assignmentId, normalizedAssignment) &&
+          eq(l.programId, normalizedProgram) &&
+          eq(l.dayKey, normalizedDay)
+        );
+        if (found) return found;
+      }
+      if (normalizedAssignment && normalizedDay) {
+        const found = source.find(l =>
+          eq(l.assignmentId, normalizedAssignment) &&
+          eq(l.dayKey, normalizedDay)
+        );
+        if (found) return found;
+      }
+      if (normalizedProgram && normalizedDay) {
+        const found = source.find(l =>
+          eq(l.programId, normalizedProgram) &&
+          eq(l.dayKey, normalizedDay)
+        );
+        if (found) return found;
+      }
+      if (normalizedAssignment) {
+        const found = source.find(l => eq(l.assignmentId, normalizedAssignment));
+        if (found) return found;
+      }
+      if (normalizedProgram) {
+        const found = source.find(l => eq(l.programId, normalizedProgram));
+        if (found) return found;
+      }
+      if (normalizedDay) {
+        const found = source.find(l => eq(l.dayKey, normalizedDay));
+        if (found) return found;
+      }
+      if (normalizedDate) {
+        const found = source.find(l => eq(l.date, normalizedDate));
+        if (found) return found;
+      }
+      return source[0] || null;
+    };
+
+    let match = runSearch(filtered.length ? filtered : logs);
+    if (!match && normalizedDate) {
+      match = runSearch(logs);
+    }
+    return match || null;
+  }
+
+  function celebrateCompletion() {
+    const existing = document.querySelector('.celebrate-pop');
+    if (existing) {
+      existing.remove();
+    }
+    const pop = document.createElement('div');
+    pop.className = 'celebrate-pop';
+    pop.innerHTML = `
+      <div class="celebrate-icon">🏆</div>
+      <div class="celebrate-text">آفرین! تمرین انجام شد 🎉</div>
+    `;
+    document.body.appendChild(pop);
+    requestAnimationFrame(() => pop.classList.add('show'));
+    setTimeout(() => {
+      pop.classList.remove('show');
+      setTimeout(() => pop.remove(), 350);
+    }, 2000);
+  }
+
+  async function toggleProgramDayCompletion({ logId, assignmentId, programId, dayKey, dateISO }) {
+    if (!currentStudent) return;
+    const logs = await DB.listLogsForStudent(currentStudent.id);
+    const targetLog = findMatchingLog(logs, { logId, assignmentId, programId, dayKey, dateISO });
+    const nextState = targetLog ? !targetLog.completed : true;
+    try {
+      if (targetLog) {
+        await DB.updateLog(targetLog.id, { completed: nextState });
+      } else {
+        const iso = dateISO || new Date().toISOString().slice(0, 10);
+        await DB.addLog(currentStudent.id, {
+          date: iso,
+          assignmentId: assignmentId || null,
+          programId: programId || null,
+          dayKey: dayKey || null,
+          completed: nextState,
+        });
+      }
+      if (nextState) celebrateCompletion();
+      await renderPrograms();
+      await renderLogs();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'ثبت وضعیت انجام نشد.');
+    }
+  }
+
+  async function openLogForDay({ dayKey, dateISO, assignmentId, programId, logId }) {
+    if (!currentStudent) return;
+    activatePanel('log');
+    switchLogView('form');
+    const logs = await DB.listLogsForStudent(currentStudent.id);
+    const targetLog = findMatchingLog(logs, { logId, assignmentId, programId, dayKey, dateISO });
+    fillLogForm(targetLog || null, {
+      assignmentId,
+      programId,
+      dayKey,
+      completed: targetLog ? targetLog.completed : false,
+      dateISO: targetLog?.date || dateISO || '',
+    });
+    if (logMood) logMood.focus({ preventScroll: false });
+    requestAnimationFrame(() => {
+      logForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }

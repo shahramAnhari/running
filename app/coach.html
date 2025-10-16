@@ -50,6 +50,10 @@
         <label>رمز عبور
           <input type="password" id="coachLoginPassword" required placeholder="حداقل ۶ کاراکتر" />
         </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="coachRemember" checked />
+          <span>مرا به خاطر بسپار</span>
+        </label>
         <button type="submit" class="btn-primary">ورود</button>
       </form>
       <div id="coachLoginMsg" class="muted"></div>
@@ -64,6 +68,7 @@
         <button class="side-link" data-panel="assignments">🗂️ انتساب‌ها</button>
         <button class="side-link" data-panel="payments">💳 پرداخت‌ها</button>
         <button class="side-link" data-panel="overview">📊 نمای کلی شاگرد</button>
+        <button class="side-link" data-panel="strava">🔗 استراوا</button>
         <button class="side-link" data-panel="logs">📝 گزارش روزانه</button>
         <button class="side-link" data-panel="coach-goals">🎯 اهداف شاگردان</button>
         <div class="side-footer">
@@ -329,6 +334,13 @@
             </div>
 
             <div id="ovContent" class="list" style="margin-top:10px"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="strava" hidden>
+          <div class="card">
+            <h2>لینک‌های استراوا</h2>
+            <div id="stravaList" class="list"></div>
           </div>
         </section>
 
